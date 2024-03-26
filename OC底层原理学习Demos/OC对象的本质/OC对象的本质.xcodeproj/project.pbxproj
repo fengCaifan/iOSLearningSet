@@ -25,6 +25,7 @@
 /* Begin PBXFileReference section */
 		31CF4CC72BB02B8400387B1C /* OC对象的本质 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "OC对象的本质"; sourceTree = BUILT_PRODUCTS_DIR; };
 		31CF4CCA2BB02B8400387B1C /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		31DE36862BB24D0200EB8FD1 /* main-arm64.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "main-arm64.cpp"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +58,7 @@
 		31CF4CC92BB02B8400387B1C /* OC对象的本质 */ = {
 			isa = PBXGroup;
 			children = (
+				31DE36862BB24D0200EB8FD1 /* main-arm64.cpp */,
 				31CF4CCA2BB02B8400387B1C /* main.m */,
 			);
 			path = "OC对象的本质";

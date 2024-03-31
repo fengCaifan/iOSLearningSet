@@ -4930,6 +4930,22 @@ typedef struct objc_class *Class;
 struct objc_object {
     Class _Nonnull isa __attribute__((deprecated));
 };
+
+struct objc_object {
+    Class isa;
+};
+
+typedef objc_class * Class;
+struct objc_class: objc_object {
+    Class superclass;
+    cache_t cache;
+    class_data_bits_t bits;
+}
+
+struct cache_t {
+    
+}
+
 typedef struct objc_object *id;
 typedef struct objc_selector *SEL;
 typedef void (*IMP)(void );

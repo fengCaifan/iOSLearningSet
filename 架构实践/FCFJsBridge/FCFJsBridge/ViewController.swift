@@ -25,7 +25,8 @@ class ViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        guard let url = URL(string: "https://www.baidu.com") else { return }
+        guard let path = Bundle.main.path(forResource: "index", ofType: "html") else { return }
+        let url = URL(filePath: path)
         let request = URLRequest(url: url)
         webView.load(request)
     }
@@ -33,10 +34,27 @@ class ViewController: UIViewController {
 
 extension ViewController: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        
+        if message.name == "nativeCallback" {
+            if let msg = message.body as? String {
+                showAlert(msg)
+            }
+        }
+    }
+    
+    private func showAlert(_ message: String) {
+        let alertController = UIAlertController(title: "Toast", message: message, preferredStyle: .alert)
+        let okAction = UIAlertAction(title: "ok", style: .default, handler: nil)
+        alertController.addAction(okAction)
+        present(alertController, animated: true)
     }
 }
 
 extension ViewController: WKNavigationDelegate {
-    
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        webView.evaluateJavaScript("displayDate()") { any, error in
+            if error != nil {
+                print(error ?? "err")
+            }
+        }
+    }
 }

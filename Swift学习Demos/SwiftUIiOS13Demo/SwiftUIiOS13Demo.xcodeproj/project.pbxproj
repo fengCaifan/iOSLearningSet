@@ -28,6 +28,13 @@
 		191877C32AFD0EAC00D9656D /* bestFriendBg@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 191877C22AFD0EAC00D9656D /* bestFriendBg@3x.png */; };
 		192096132B18717F0050BA7E /* BindingTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192096122B18717F0050BA7E /* BindingTest.swift */; };
 		194F443A2BA8360F00DD1387 /* ChatGameMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194F44392BA8360F00DD1387 /* ChatGameMenuView.swift */; };
+		19594CF32BCD1F5000C2C5A4 /* PetStarToIntegralView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19594CF22BCD1F5000C2C5A4 /* PetStarToIntegralView.swift */; };
+		195B5EB12BC9139A0043C99F /* PetFoodPurchaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB02BC9139A0043C99F /* PetFoodPurchaseView.swift */; };
+		195B5EB42BC9169B0043C99F /* config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB32BC9169B0043C99F /* config.swift */; };
+		195B5EB62BC9173C0043C99F /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB52BC9173C0043C99F /* ColorExtension.swift */; };
+		195B5EB82BC9192A0043C99F /* TextExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB72BC9192A0043C99F /* TextExtension.swift */; };
+		195B5EBA2BC91A280043C99F /* ViewExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB92BC91A280043C99F /* ViewExtension.swift */; };
+		195B5EBC2BC92C9B0043C99F /* ResizableSlicingImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EBB2BC92C9B0043C99F /* ResizableSlicingImageView.swift */; };
 		195DB87C2B0754FD00444705 /* TextDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195DB87B2B0754FD00444705 /* TextDemo.swift */; };
 		19627F7C2B956F150027C9D1 /* PackageExpiredDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19627F7B2B956F150027C9D1 /* PackageExpiredDetail.swift */; };
 		1968182A2B0397B20068036E /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196818292B0397B20068036E /* Test.swift */; };
@@ -35,6 +42,8 @@
 		1985E7582B6349BB00E998DC /* AudioLiveDataContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1985E7572B6349BB00E998DC /* AudioLiveDataContent.swift */; };
 		1985E75A2B634A9400E998DC /* HomeOwnerEndPageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1985E7592B634A9400E998DC /* HomeOwnerEndPageModel.swift */; };
 		1985E75C2B635C7B00E998DC /* AudioLiveProcessContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1985E75B2B635C7B00E998DC /* AudioLiveProcessContent.swift */; };
+		19B248A22BC77A2000B0D343 /* PetFood.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B248A12BC77A2000B0D343 /* PetFood.swift */; };
+		19B248A42BC7C99600B0D343 /* PetFoodDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B248A32BC7C99600B0D343 /* PetFoodDetail.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +88,13 @@
 		191877C22AFD0EAC00D9656D /* bestFriendBg@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "bestFriendBg@3x.png"; sourceTree = "<group>"; };
 		192096122B18717F0050BA7E /* BindingTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BindingTest.swift; sourceTree = "<group>"; };
 		194F44392BA8360F00DD1387 /* ChatGameMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGameMenuView.swift; sourceTree = "<group>"; };
+		19594CF22BCD1F5000C2C5A4 /* PetStarToIntegralView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStarToIntegralView.swift; sourceTree = "<group>"; };
+		195B5EB02BC9139A0043C99F /* PetFoodPurchaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetFoodPurchaseView.swift; sourceTree = "<group>"; };
+		195B5EB32BC9169B0043C99F /* config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = config.swift; sourceTree = "<group>"; };
+		195B5EB52BC9173C0043C99F /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
+		195B5EB72BC9192A0043C99F /* TextExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextExtension.swift; sourceTree = "<group>"; };
+		195B5EB92BC91A280043C99F /* ViewExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewExtension.swift; sourceTree = "<group>"; };
+		195B5EBB2BC92C9B0043C99F /* ResizableSlicingImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResizableSlicingImageView.swift; sourceTree = "<group>"; };
 		195DB87B2B0754FD00444705 /* TextDemo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDemo.swift; sourceTree = "<group>"; };
 		19627F7B2B956F150027C9D1 /* PackageExpiredDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageExpiredDetail.swift; sourceTree = "<group>"; };
 		196818292B0397B20068036E /* Test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Test.swift; sourceTree = "<group>"; };
@@ -86,6 +102,8 @@
 		1985E7572B6349BB00E998DC /* AudioLiveDataContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLiveDataContent.swift; sourceTree = "<group>"; };
 		1985E7592B634A9400E998DC /* HomeOwnerEndPageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOwnerEndPageModel.swift; sourceTree = "<group>"; };
 		1985E75B2B635C7B00E998DC /* AudioLiveProcessContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLiveProcessContent.swift; sourceTree = "<group>"; };
+		19B248A12BC77A2000B0D343 /* PetFood.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetFood.swift; sourceTree = "<group>"; };
+		19B248A32BC7C99600B0D343 /* PetFoodDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetFoodDetail.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +154,7 @@
 		191877842AFCBE1100D9656D /* SwiftUIiOS13Demo */ = {
 			isa = PBXGroup;
 			children = (
+				195B5EB22BC9168C0043C99F /* Base */,
 				1985E7522B63491400E998DC /* Gravity */,
 				195DB87A2B0754E300444705 /* 系统控件学习 */,
 				191877B12AFCC3F700D9656D /* 自定义控件 */,
@@ -209,6 +228,18 @@
 			path = SegmentControl;
 			sourceTree = "<group>";
 		};
+		195B5EB22BC9168C0043C99F /* Base */ = {
+			isa = PBXGroup;
+			children = (
+				195B5EB32BC9169B0043C99F /* config.swift */,
+				195B5EB52BC9173C0043C99F /* ColorExtension.swift */,
+				195B5EB72BC9192A0043C99F /* TextExtension.swift */,
+				195B5EB92BC91A280043C99F /* ViewExtension.swift */,
+				195B5EBB2BC92C9B0043C99F /* ResizableSlicingImageView.swift */,
+			);
+			path = Base;
+			sourceTree = "<group>";
+		};
 		195DB87A2B0754E300444705 /* 系统控件学习 */ = {
 			isa = PBXGroup;
 			children = (
@@ -226,6 +257,10 @@
 				1985E7592B634A9400E998DC /* HomeOwnerEndPageModel.swift */,
 				19627F7B2B956F150027C9D1 /* PackageExpiredDetail.swift */,
 				194F44392BA8360F00DD1387 /* ChatGameMenuView.swift */,
+				19B248A12BC77A2000B0D343 /* PetFood.swift */,
+				19B248A32BC7C99600B0D343 /* PetFoodDetail.swift */,
+				195B5EB02BC9139A0043C99F /* PetFoodPurchaseView.swift */,
+				19594CF22BCD1F5000C2C5A4 /* PetStarToIntegralView.swift */,
 			);
 			path = Gravity;
 			sourceTree = "<group>";
@@ -362,24 +397,33 @@
 			buildActionMask = 2147483647;
 			files = (
 				19174A422AFF14F5005504BE /* TPIconTextItem.swift in Sources */,
+				19B248A22BC77A2000B0D343 /* PetFood.swift in Sources */,
 				195DB87C2B0754FD00444705 /* TextDemo.swift in Sources */,
 				1985E7582B6349BB00E998DC /* AudioLiveDataContent.swift in Sources */,
 				19174A3D2AFF14F5005504BE /* TPSegmentControl.swift in Sources */,
 				1985E75C2B635C7B00E998DC /* AudioLiveProcessContent.swift in Sources */,
+				195B5EB12BC9139A0043C99F /* PetFoodPurchaseView.swift in Sources */,
 				191877C12AFD0E6A00D9656D /* BestFirendView.swift in Sources */,
 				1968182A2B0397B20068036E /* Test.swift in Sources */,
 				194F443A2BA8360F00DD1387 /* ChatGameMenuView.swift in Sources */,
 				191877882AFCBE1100D9656D /* ContentView.swift in Sources */,
+				19B248A42BC7C99600B0D343 /* PetFoodDetail.swift in Sources */,
 				191877862AFCBE1100D9656D /* SwiftUIiOS13DemoApp.swift in Sources */,
 				192096132B18717F0050BA7E /* BindingTest.swift in Sources */,
 				191877B02AFCC03A00D9656D /* SwiftUIGrid.swift in Sources */,
 				1985E7562B63494600E998DC /* AudioLiveHomeOwnerEndPage.swift in Sources */,
 				1985E75A2B634A9400E998DC /* HomeOwnerEndPageModel.swift in Sources */,
+				195B5EB62BC9173C0043C99F /* ColorExtension.swift in Sources */,
 				19174A412AFF14F5005504BE /* TPCapsuleSegmentPicker.swift in Sources */,
+				195B5EBA2BC91A280043C99F /* ViewExtension.swift in Sources */,
 				19174A3F2AFF14F5005504BE /* TPLineSegmentPicker.swift in Sources */,
+				195B5EB42BC9169B0043C99F /* config.swift in Sources */,
+				19594CF32BCD1F5000C2C5A4 /* PetStarToIntegralView.swift in Sources */,
 				19627F7C2B956F150027C9D1 /* PackageExpiredDetail.swift in Sources */,
 				19174A3E2AFF14F5005504BE /* TPSegmentPicker.swift in Sources */,
 				191877BB2AFCC42400D9656D /* SegmentControl.swift in Sources */,
+				195B5EB82BC9192A0043C99F /* TextExtension.swift in Sources */,
+				195B5EBC2BC92C9B0043C99F /* ResizableSlicingImageView.swift in Sources */,
 				191877BF2AFCFC8300D9656D /* BestFriendGiftPannel.swift in Sources */,
 				19174A432AFF14F5005504BE /* TPPageScrollView.swift in Sources */,
 				19174A402AFF14F5005504BE /* TPSegmentPickerConfig.swift in Sources */,

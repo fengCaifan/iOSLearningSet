@@ -33,6 +33,7 @@ struct TPBestFriendGiftViewCell: View {
                         IconText(icon: "coin", text: "300")
                     }
                 }
+                .background(Color.red)
                 .padding()
                 if isUsed {
                     Text("使用中")

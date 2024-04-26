@@ -20,7 +20,7 @@ struct PetFoodPurchaseView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
                 Image("购买弹窗背景2")
-                    .resizable(capInsets: EdgeInsets(top: 130.tp.fitScreen, leading: 0, bottom: 20.tp.fitScreen, trailing: 0), resizingMode: .stretch)
+                    .resizable(capInsets: EdgeInsets(top: 125.0, leading: 0, bottom: 20.0, trailing: 0), resizingMode: .stretch)
                     .frame(width: 348.tp.fitScreen, height: 503.tp.fitScreen)
                     .scaledToFit()
                     .background(Color.red)
@@ -84,16 +84,16 @@ struct PetFoodPurchaseView: View {
                 .frame(width: 330.tp.fitScreen, height: 400.tp.fitScreen)
                 .padding(EdgeInsets(top: 100.tp.fitScreen, leading: 9.tp.fitScreen, bottom: 0, trailing: 9.tp.fitScreen))
                 
-                Button(action: {
-                    
-                }, label: {
-                    Image("关闭弹窗")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36.tp.fitScreen, height: 36.tp.fitScreen)
-                })
-                .padding(.trailing, 5.tp.fitScreen)
-                .padding( .top, 90.tp.fitScreen)
+//                Button(action: {
+//                    
+//                }, label: {
+//                    Image("关闭弹窗")
+//                        .resizable()
+//                        .scaledToFit()
+//                        .frame(width: 36.tp.fitScreen, height: 36.tp.fitScreen)
+//                })
+//                .padding(.trailing, 5.tp.fitScreen)
+//                .padding( .top, 90.tp.fitScreen)
             }
             .frame(width: 348.tp.fitScreen, height: 503.tp.fitScreen)
             .background(

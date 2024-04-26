@@ -21,8 +21,9 @@ struct PetStarToIntegralView: View {
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
+            // 拉伸不用tp.fitScreen，否则会在部分机型上不准
             Image("普通弹窗背景")
-                .resizable(capInsets: EdgeInsets(top: 44.tp.fitScreen, leading: 45.tp.fitScreen, bottom: 44.tp.fitScreen, trailing: 45.tp.fitScreen), resizingMode: .stretch)
+                .resizable(capInsets: EdgeInsets(top: 44.0, leading: 45.0, bottom: 44.0, trailing: 45.0), resizingMode: .stretch)
                 .frame(width: 348.tp.fitScreen, height: 426.tp.fitScreen)
                 .scaledToFit()
             VStack(spacing: 0.0) {

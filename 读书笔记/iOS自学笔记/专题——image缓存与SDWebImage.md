@@ -47,6 +47,8 @@ description: 本章节主要是图片缓存架构相关学习。主要包含图�
 
 [SDWebImage原理](<https://zhuanlan.zhihu.com/p/64934706>)
 [周小可—SDWebImage源码解析](<https://hnxczk.github.io/blog/articles/sd.html#sdwebimagecache>)
+[iOS—SDWebImage源码学习](<https://blog.csdn.net/m0_73348697/article/details/138508410>)
+
 
 ##### 注意的细节与常考点，与上述流程对应
 * 第1步中：会先设置placeholder。然后根据URL开启下载。整个库中的key值默认使用图片URL，比如缓存、下载操作等。URL中可能会含有一部分动态变化的部分（比如获取权限的部分），所以我们可以取url不变的值scheme、host、path作为key值；

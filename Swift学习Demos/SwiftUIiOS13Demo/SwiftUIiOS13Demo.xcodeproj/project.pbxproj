@@ -27,6 +27,7 @@
 		191877C12AFD0E6A00D9656D /* BestFirendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191877C02AFD0E6A00D9656D /* BestFirendView.swift */; };
 		191877C32AFD0EAC00D9656D /* bestFriendBg@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 191877C22AFD0EAC00D9656D /* bestFriendBg@3x.png */; };
 		192096132B18717F0050BA7E /* BindingTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192096122B18717F0050BA7E /* BindingTest.swift */; };
+		1942182B2C6B08F2007E954C /* TPStyleToolContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942182A2C6B08F2007E954C /* TPStyleToolContainerView.swift */; };
 		194AE88C2BE86D7500F6EF73 /* TPGrowTaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194AE88B2BE86D7500F6EF73 /* TPGrowTaskListView.swift */; };
 		194AE88F2BE871B000F6EF73 /* TPGrowTaskItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194AE88E2BE871B000F6EF73 /* TPGrowTaskItem.swift */; };
 		194AE8922BE8725500F6EF73 /* TPJson.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194AE8902BE8725500F6EF73 /* TPJson.swift */; };
@@ -91,6 +92,7 @@
 		191877C02AFD0E6A00D9656D /* BestFirendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestFirendView.swift; sourceTree = "<group>"; };
 		191877C22AFD0EAC00D9656D /* bestFriendBg@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "bestFriendBg@3x.png"; sourceTree = "<group>"; };
 		192096122B18717F0050BA7E /* BindingTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BindingTest.swift; sourceTree = "<group>"; };
+		1942182A2C6B08F2007E954C /* TPStyleToolContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPStyleToolContainerView.swift; sourceTree = "<group>"; };
 		194AE88B2BE86D7500F6EF73 /* TPGrowTaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPGrowTaskListView.swift; sourceTree = "<group>"; };
 		194AE88E2BE871B000F6EF73 /* TPGrowTaskItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPGrowTaskItem.swift; sourceTree = "<group>"; };
 		194AE8902BE8725500F6EF73 /* TPJson.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TPJson.swift; sourceTree = "<group>"; };
@@ -281,6 +283,7 @@
 				195B5EB02BC9139A0043C99F /* PetFoodPurchaseView.swift */,
 				19594CF22BCD1F5000C2C5A4 /* PetStarToIntegralView.swift */,
 				194AE88B2BE86D7500F6EF73 /* TPGrowTaskListView.swift */,
+				1942182A2C6B08F2007E954C /* TPStyleToolContainerView.swift */,
 			);
 			path = Gravity;
 			sourceTree = "<group>";
@@ -450,6 +453,7 @@
 				195B5EBC2BC92C9B0043C99F /* ResizableSlicingImageView.swift in Sources */,
 				191877BF2AFCFC8300D9656D /* BestFriendGiftPannel.swift in Sources */,
 				19174A432AFF14F5005504BE /* TPPageScrollView.swift in Sources */,
+				1942182B2C6B08F2007E954C /* TPStyleToolContainerView.swift in Sources */,
 				19174A402AFF14F5005504BE /* TPSegmentPickerConfig.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

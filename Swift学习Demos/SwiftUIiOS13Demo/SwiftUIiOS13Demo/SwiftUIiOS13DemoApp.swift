@@ -15,7 +15,8 @@ struct SwiftUIiOS13DemoApp: App {
 //            SegmentControl()
 //            AudioLiveHomeOwnerEndPage()
 //            PackageExpiredDetailPage()
-            TPStyleToolContainerView()
+//            TPStyleToolContainerView()
+            TPChangeVoiceView()
         }
     }
 }

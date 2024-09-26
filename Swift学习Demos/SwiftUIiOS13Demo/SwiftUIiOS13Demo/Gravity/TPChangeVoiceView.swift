@@ -40,9 +40,15 @@ struct TPChangeVoiceView: View {
                 Text("ボイスチェンジを試聴")
                     .boldFont(16)
                     .foregroundColor(.g287)
-                Text("\(selectedModel.name)....... 試してみよう！")
-                    .font(12)
-                    .foregroundColor(.g250)
+                if selectedModel.id == 0 {
+                    Text("\(selectedModel.name)....... 試してみよう！")
+                        .font(12)
+                        .foregroundColor(.g250)
+                } else {
+                    Text("\(selectedModel.name)....... 試してみよう！試してみよう！試してみよう！試してみよう！試してみよう！")
+                        .font(12)
+                        .foregroundColor(.g250)
+                }
             }
             .frame(width: .infinity)
             

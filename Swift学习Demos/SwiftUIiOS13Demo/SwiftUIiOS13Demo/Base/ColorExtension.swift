@@ -477,6 +477,8 @@ extension UIColor {
     static var yFEDAA310: UIColor = UIColor(rgba: "#FEDAA3").withAlphaComponent(0.10)
     /// yFEDAA306
     static var yFEDAA306: UIColor = UIColor(rgba: "#FEDAA3").withAlphaComponent(0.06)
+    /// yFEDAA387
+    static var yFEDAA387: UIColor = UIColor(rgba: "#FEDAA3").withAlphaComponent(0.87)
     /// FFE600
     static var yFFE600: UIColor = UIColor(rgba: "#FFE600")
     /// FFECD1

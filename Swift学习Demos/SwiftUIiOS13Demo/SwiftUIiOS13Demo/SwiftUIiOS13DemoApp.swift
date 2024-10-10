@@ -16,7 +16,8 @@ struct SwiftUIiOS13DemoApp: App {
 //            AudioLiveHomeOwnerEndPage()
 //            PackageExpiredDetailPage()
 //            TPStyleToolContainerView()
-            TPChangeVoiceView()
+//            TPChangeVoiceView()
+            TPCpRankingView()
         }
     }
 }

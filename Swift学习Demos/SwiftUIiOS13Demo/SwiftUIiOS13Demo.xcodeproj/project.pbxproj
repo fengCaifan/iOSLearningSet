@@ -34,6 +34,7 @@
 		194AE8922BE8725500F6EF73 /* TPJson.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194AE8902BE8725500F6EF73 /* TPJson.swift */; };
 		194AE8932BE8725500F6EF73 /* DefaultValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194AE8912BE8725500F6EF73 /* DefaultValue.swift */; };
 		194F443A2BA8360F00DD1387 /* ChatGameMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194F44392BA8360F00DD1387 /* ChatGameMenuView.swift */; };
+		195753B62CC1077800A1865F /* ListDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195753B52CC1077800A1865F /* ListDemo.swift */; };
 		19594CF32BCD1F5000C2C5A4 /* PetStarToIntegralView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19594CF22BCD1F5000C2C5A4 /* PetStarToIntegralView.swift */; };
 		195B5EB12BC9139A0043C99F /* PetFoodPurchaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB02BC9139A0043C99F /* PetFoodPurchaseView.swift */; };
 		195B5EB42BC9169B0043C99F /* config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B5EB32BC9169B0043C99F /* config.swift */; };
@@ -102,6 +103,7 @@
 		194AE8902BE8725500F6EF73 /* TPJson.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TPJson.swift; sourceTree = "<group>"; };
 		194AE8912BE8725500F6EF73 /* DefaultValue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultValue.swift; sourceTree = "<group>"; };
 		194F44392BA8360F00DD1387 /* ChatGameMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGameMenuView.swift; sourceTree = "<group>"; };
+		195753B52CC1077800A1865F /* ListDemo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListDemo.swift; sourceTree = "<group>"; };
 		19594CF22BCD1F5000C2C5A4 /* PetStarToIntegralView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStarToIntegralView.swift; sourceTree = "<group>"; };
 		195B5EB02BC9139A0043C99F /* PetFoodPurchaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetFoodPurchaseView.swift; sourceTree = "<group>"; };
 		195B5EB32BC9169B0043C99F /* config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = config.swift; sourceTree = "<group>"; };
@@ -270,6 +272,7 @@
 			isa = PBXGroup;
 			children = (
 				195DB87B2B0754FD00444705 /* TextDemo.swift */,
+				195753B52CC1077800A1865F /* ListDemo.swift */,
 			);
 			path = "系统控件学习";
 			sourceTree = "<group>";
@@ -462,6 +465,7 @@
 				191877BB2AFCC42400D9656D /* SegmentControl.swift in Sources */,
 				194AE88F2BE871B000F6EF73 /* TPGrowTaskItem.swift in Sources */,
 				195B5EB82BC9192A0043C99F /* TextExtension.swift in Sources */,
+				195753B62CC1077800A1865F /* ListDemo.swift in Sources */,
 				195B5EBC2BC92C9B0043C99F /* ResizableSlicingImageView.swift in Sources */,
 				191877BF2AFCFC8300D9656D /* BestFriendGiftPannel.swift in Sources */,
 				19174A432AFF14F5005504BE /* TPPageScrollView.swift in Sources */,

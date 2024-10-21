@@ -17,7 +17,8 @@ struct SwiftUIiOS13DemoApp: App {
 //            PackageExpiredDetailPage()
 //            TPStyleToolContainerView()
 //            TPChangeVoiceView()
-            TPCpRankingView()
+//            TPCpRankingView()
+            ListDemo()
         }
     }
 }

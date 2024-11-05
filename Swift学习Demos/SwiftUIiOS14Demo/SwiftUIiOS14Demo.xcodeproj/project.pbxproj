@@ -12,6 +12,12 @@
 		19599CB32CCF693700B9BDB8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19599CB22CCF693700B9BDB8 /* Assets.xcassets */; };
 		19599CB62CCF693700B9BDB8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19599CB52CCF693700B9BDB8 /* Preview Assets.xcassets */; };
 		19599CBE2CCF6E0300B9BDB8 /* ProgressViewTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */; };
+		19E76A6A2CDA068400FF052B /* LazyVGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A692CDA068400FF052B /* LazyVGrid.swift */; };
+		19E76A742CDA11FD00FF052B /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */; };
+		19E76A752CDA11FD00FF052B /* config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A6F2CDA11FD00FF052B /* config.swift */; };
+		19E76A762CDA11FD00FF052B /* ResizableSlicingImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A702CDA11FD00FF052B /* ResizableSlicingImageView.swift */; };
+		19E76A772CDA11FD00FF052B /* TextExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A712CDA11FD00FF052B /* TextExtension.swift */; };
+		19E76A782CDA11FD00FF052B /* ViewExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A722CDA11FD00FF052B /* ViewExtension.swift */; };
 		35EA92FCC0917DF0DD473590 /* Pods_SwiftUIiOS14Demo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7E9A2532DAAD0DE7F17158 /* Pods_SwiftUIiOS14Demo.framework */; };
 /* End PBXBuildFile section */
 
@@ -22,6 +28,12 @@
 		19599CB22CCF693700B9BDB8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		19599CB52CCF693700B9BDB8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressViewTest.swift; sourceTree = "<group>"; };
+		19E76A692CDA068400FF052B /* LazyVGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LazyVGrid.swift; sourceTree = "<group>"; };
+		19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
+		19E76A6F2CDA11FD00FF052B /* config.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = config.swift; sourceTree = "<group>"; };
+		19E76A702CDA11FD00FF052B /* ResizableSlicingImageView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResizableSlicingImageView.swift; sourceTree = "<group>"; };
+		19E76A712CDA11FD00FF052B /* TextExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextExtension.swift; sourceTree = "<group>"; };
+		19E76A722CDA11FD00FF052B /* ViewExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewExtension.swift; sourceTree = "<group>"; };
 		1E42C3D03A4C3345FC5DC414 /* Pods-SwiftUIiOS14Demo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SwiftUIiOS14Demo.debug.xcconfig"; path = "Target Support Files/Pods-SwiftUIiOS14Demo/Pods-SwiftUIiOS14Demo.debug.xcconfig"; sourceTree = "<group>"; };
 		95AECEC72943E4E08E9D9924 /* Pods-SwiftUIiOS14Demo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SwiftUIiOS14Demo.release.xcconfig"; path = "Target Support Files/Pods-SwiftUIiOS14Demo/Pods-SwiftUIiOS14Demo.release.xcconfig"; sourceTree = "<group>"; };
 		AB7E9A2532DAAD0DE7F17158 /* Pods_SwiftUIiOS14Demo.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SwiftUIiOS14Demo.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -60,6 +72,7 @@
 		19599CAD2CCF693600B9BDB8 /* SwiftUIiOS14Demo */ = {
 			isa = PBXGroup;
 			children = (
+				19E76A732CDA11FD00FF052B /* Base */,
 				19599CBC2CCF6DEA00B9BDB8 /* 基础控件 */,
 				19599CAE2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift */,
 				19599CB02CCF693600B9BDB8 /* ContentView.swift */,
@@ -81,8 +94,21 @@
 			isa = PBXGroup;
 			children = (
 				19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */,
+				19E76A692CDA068400FF052B /* LazyVGrid.swift */,
 			);
 			path = "基础控件";
+			sourceTree = "<group>";
+		};
+		19E76A732CDA11FD00FF052B /* Base */ = {
+			isa = PBXGroup;
+			children = (
+				19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */,
+				19E76A6F2CDA11FD00FF052B /* config.swift */,
+				19E76A702CDA11FD00FF052B /* ResizableSlicingImageView.swift */,
+				19E76A712CDA11FD00FF052B /* TextExtension.swift */,
+				19E76A722CDA11FD00FF052B /* ViewExtension.swift */,
+			);
+			path = Base;
 			sourceTree = "<group>";
 		};
 		5035C3513C873E63D445249C /* Frameworks */ = {
@@ -217,7 +243,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				19599CB12CCF693600B9BDB8 /* ContentView.swift in Sources */,
+				19E76A772CDA11FD00FF052B /* TextExtension.swift in Sources */,
 				19599CBE2CCF6E0300B9BDB8 /* ProgressViewTest.swift in Sources */,
+				19E76A762CDA11FD00FF052B /* ResizableSlicingImageView.swift in Sources */,
+				19E76A782CDA11FD00FF052B /* ViewExtension.swift in Sources */,
+				19E76A6A2CDA068400FF052B /* LazyVGrid.swift in Sources */,
+				19E76A742CDA11FD00FF052B /* ColorExtension.swift in Sources */,
+				19E76A752CDA11FD00FF052B /* config.swift in Sources */,
 				19599CAF2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

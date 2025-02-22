@@ -7,11 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		19378BBF2CEB54B000744B84 /* CornersRounded.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19378BBE2CEB54B000744B84 /* CornersRounded.swift */; };
+		19378BC12CEB5F6500744B84 /* TPVerticalFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19378BC02CEB5F6500744B84 /* TPVerticalFlow.swift */; };
 		19599CAF2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CAE2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift */; };
 		19599CB12CCF693600B9BDB8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CB02CCF693600B9BDB8 /* ContentView.swift */; };
 		19599CB32CCF693700B9BDB8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19599CB22CCF693700B9BDB8 /* Assets.xcassets */; };
 		19599CB62CCF693700B9BDB8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19599CB52CCF693700B9BDB8 /* Preview Assets.xcassets */; };
 		19599CBE2CCF6E0300B9BDB8 /* ProgressViewTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */; };
+		1962A59C2CEB531D008C424F /* TPAudioLiveListenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1962A59B2CEB531D008C424F /* TPAudioLiveListenView.swift */; };
 		19E76A6A2CDA068400FF052B /* LazyVGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A692CDA068400FF052B /* LazyVGrid.swift */; };
 		19E76A742CDA11FD00FF052B /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */; };
 		19E76A752CDA11FD00FF052B /* config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A6F2CDA11FD00FF052B /* config.swift */; };
@@ -22,12 +25,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		19378BBE2CEB54B000744B84 /* CornersRounded.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornersRounded.swift; sourceTree = "<group>"; };
+		19378BC02CEB5F6500744B84 /* TPVerticalFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPVerticalFlow.swift; sourceTree = "<group>"; };
 		19599CAB2CCF693600B9BDB8 /* SwiftUIiOS14Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUIiOS14Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19599CAE2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIiOS14DemoApp.swift; sourceTree = "<group>"; };
 		19599CB02CCF693600B9BDB8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		19599CB22CCF693700B9BDB8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		19599CB52CCF693700B9BDB8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressViewTest.swift; sourceTree = "<group>"; };
+		1962A59B2CEB531D008C424F /* TPAudioLiveListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPAudioLiveListenView.swift; sourceTree = "<group>"; };
 		19E76A692CDA068400FF052B /* LazyVGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LazyVGrid.swift; sourceTree = "<group>"; };
 		19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
 		19E76A6F2CDA11FD00FF052B /* config.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = config.swift; sourceTree = "<group>"; };
@@ -74,6 +80,7 @@
 			children = (
 				19E76A732CDA11FD00FF052B /* Base */,
 				19599CBC2CCF6DEA00B9BDB8 /* 基础控件 */,
+				1962A59A2CEB52F7008C424F /* Demos */,
 				19599CAE2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift */,
 				19599CB02CCF693600B9BDB8 /* ContentView.swift */,
 				19599CB22CCF693700B9BDB8 /* Assets.xcassets */,
@@ -95,8 +102,17 @@
 			children = (
 				19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */,
 				19E76A692CDA068400FF052B /* LazyVGrid.swift */,
+				19378BC02CEB5F6500744B84 /* TPVerticalFlow.swift */,
 			);
 			path = "基础控件";
+			sourceTree = "<group>";
+		};
+		1962A59A2CEB52F7008C424F /* Demos */ = {
+			isa = PBXGroup;
+			children = (
+				1962A59B2CEB531D008C424F /* TPAudioLiveListenView.swift */,
+			);
+			path = Demos;
 			sourceTree = "<group>";
 		};
 		19E76A732CDA11FD00FF052B /* Base */ = {
@@ -107,6 +123,7 @@
 				19E76A702CDA11FD00FF052B /* ResizableSlicingImageView.swift */,
 				19E76A712CDA11FD00FF052B /* TextExtension.swift */,
 				19E76A722CDA11FD00FF052B /* ViewExtension.swift */,
+				19378BBE2CEB54B000744B84 /* CornersRounded.swift */,
 			);
 			path = Base;
 			sourceTree = "<group>";
@@ -246,7 +263,10 @@
 				19E76A772CDA11FD00FF052B /* TextExtension.swift in Sources */,
 				19599CBE2CCF6E0300B9BDB8 /* ProgressViewTest.swift in Sources */,
 				19E76A762CDA11FD00FF052B /* ResizableSlicingImageView.swift in Sources */,
+				1962A59C2CEB531D008C424F /* TPAudioLiveListenView.swift in Sources */,
+				19378BC12CEB5F6500744B84 /* TPVerticalFlow.swift in Sources */,
 				19E76A782CDA11FD00FF052B /* ViewExtension.swift in Sources */,
+				19378BBF2CEB54B000744B84 /* CornersRounded.swift in Sources */,
 				19E76A6A2CDA068400FF052B /* LazyVGrid.swift in Sources */,
 				19E76A742CDA11FD00FF052B /* ColorExtension.swift in Sources */,
 				19E76A752CDA11FD00FF052B /* config.swift in Sources */,

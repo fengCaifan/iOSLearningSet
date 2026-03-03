@@ -7,14 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		192A9A952D6EFF9700895BC4 /* TPStyleGiftsContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192A9A942D6EFF9700895BC4 /* TPStyleGiftsContainerView.swift */; };
+		192A9A972D6F011600895BC4 /* TPStyleSelectPopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192A9A962D6F011600895BC4 /* TPStyleSelectPopView.swift */; };
 		19378BBF2CEB54B000744B84 /* CornersRounded.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19378BBE2CEB54B000744B84 /* CornersRounded.swift */; };
 		19378BC12CEB5F6500744B84 /* TPVerticalFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19378BC02CEB5F6500744B84 /* TPVerticalFlow.swift */; };
+		194F9E652D87FA330084E662 /* TPNewPushAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194F9E642D87FA330084E662 /* TPNewPushAlertView.swift */; };
+		194F9E672D87FD1B0084E662 /* TPGap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194F9E662D87FD1B0084E662 /* TPGap.swift */; };
+		194F9E692D87FEFD0084E662 /* TPSwiftUITheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194F9E682D87FEFD0084E662 /* TPSwiftUITheme.swift */; };
 		19599CAF2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CAE2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift */; };
 		19599CB12CCF693600B9BDB8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CB02CCF693600B9BDB8 /* ContentView.swift */; };
 		19599CB32CCF693700B9BDB8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19599CB22CCF693700B9BDB8 /* Assets.xcassets */; };
 		19599CB62CCF693700B9BDB8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19599CB52CCF693700B9BDB8 /* Preview Assets.xcassets */; };
 		19599CBE2CCF6E0300B9BDB8 /* ProgressViewTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */; };
 		1962A59C2CEB531D008C424F /* TPAudioLiveListenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1962A59B2CEB531D008C424F /* TPAudioLiveListenView.swift */; };
+		19C7B03E2D8AC02400BF5979 /* PricingCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C7B03C2D8AC02400BF5979 /* PricingCardView.swift */; };
+		19C7B03F2D8AC02400BF5979 /* TPTestUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C7B03D2D8AC02400BF5979 /* TPTestUI.swift */; };
 		19E76A6A2CDA068400FF052B /* LazyVGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A692CDA068400FF052B /* LazyVGrid.swift */; };
 		19E76A742CDA11FD00FF052B /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */; };
 		19E76A752CDA11FD00FF052B /* config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E76A6F2CDA11FD00FF052B /* config.swift */; };
@@ -25,8 +32,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		192A9A942D6EFF9700895BC4 /* TPStyleGiftsContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPStyleGiftsContainerView.swift; sourceTree = "<group>"; };
+		192A9A962D6F011600895BC4 /* TPStyleSelectPopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPStyleSelectPopView.swift; sourceTree = "<group>"; };
 		19378BBE2CEB54B000744B84 /* CornersRounded.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornersRounded.swift; sourceTree = "<group>"; };
 		19378BC02CEB5F6500744B84 /* TPVerticalFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPVerticalFlow.swift; sourceTree = "<group>"; };
+		194F9E642D87FA330084E662 /* TPNewPushAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPNewPushAlertView.swift; sourceTree = "<group>"; };
+		194F9E662D87FD1B0084E662 /* TPGap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPGap.swift; sourceTree = "<group>"; };
+		194F9E682D87FEFD0084E662 /* TPSwiftUITheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPSwiftUITheme.swift; sourceTree = "<group>"; };
 		19599CAB2CCF693600B9BDB8 /* SwiftUIiOS14Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUIiOS14Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19599CAE2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIiOS14DemoApp.swift; sourceTree = "<group>"; };
 		19599CB02CCF693600B9BDB8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -34,6 +46,8 @@
 		19599CB52CCF693700B9BDB8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressViewTest.swift; sourceTree = "<group>"; };
 		1962A59B2CEB531D008C424F /* TPAudioLiveListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TPAudioLiveListenView.swift; sourceTree = "<group>"; };
+		19C7B03C2D8AC02400BF5979 /* PricingCardView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PricingCardView.swift; sourceTree = "<group>"; };
+		19C7B03D2D8AC02400BF5979 /* TPTestUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TPTestUI.swift; sourceTree = "<group>"; };
 		19E76A692CDA068400FF052B /* LazyVGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LazyVGrid.swift; sourceTree = "<group>"; };
 		19E76A6E2CDA11FD00FF052B /* ColorExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
 		19E76A6F2CDA11FD00FF052B /* config.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = config.swift; sourceTree = "<group>"; };
@@ -103,6 +117,8 @@
 				19599CBD2CCF6E0300B9BDB8 /* ProgressViewTest.swift */,
 				19E76A692CDA068400FF052B /* LazyVGrid.swift */,
 				19378BC02CEB5F6500744B84 /* TPVerticalFlow.swift */,
+				194F9E662D87FD1B0084E662 /* TPGap.swift */,
+				194F9E682D87FEFD0084E662 /* TPSwiftUITheme.swift */,
 			);
 			path = "基础控件";
 			sourceTree = "<group>";
@@ -110,7 +126,12 @@
 		1962A59A2CEB52F7008C424F /* Demos */ = {
 			isa = PBXGroup;
 			children = (
+				19C7B03C2D8AC02400BF5979 /* PricingCardView.swift */,
+				19C7B03D2D8AC02400BF5979 /* TPTestUI.swift */,
 				1962A59B2CEB531D008C424F /* TPAudioLiveListenView.swift */,
+				192A9A942D6EFF9700895BC4 /* TPStyleGiftsContainerView.swift */,
+				192A9A962D6F011600895BC4 /* TPStyleSelectPopView.swift */,
+				194F9E642D87FA330084E662 /* TPNewPushAlertView.swift */,
 			);
 			path = Demos;
 			sourceTree = "<group>";
@@ -261,16 +282,23 @@
 			files = (
 				19599CB12CCF693600B9BDB8 /* ContentView.swift in Sources */,
 				19E76A772CDA11FD00FF052B /* TextExtension.swift in Sources */,
+				194F9E692D87FEFD0084E662 /* TPSwiftUITheme.swift in Sources */,
+				194F9E672D87FD1B0084E662 /* TPGap.swift in Sources */,
+				194F9E652D87FA330084E662 /* TPNewPushAlertView.swift in Sources */,
 				19599CBE2CCF6E0300B9BDB8 /* ProgressViewTest.swift in Sources */,
+				19C7B03F2D8AC02400BF5979 /* TPTestUI.swift in Sources */,
 				19E76A762CDA11FD00FF052B /* ResizableSlicingImageView.swift in Sources */,
 				1962A59C2CEB531D008C424F /* TPAudioLiveListenView.swift in Sources */,
 				19378BC12CEB5F6500744B84 /* TPVerticalFlow.swift in Sources */,
 				19E76A782CDA11FD00FF052B /* ViewExtension.swift in Sources */,
 				19378BBF2CEB54B000744B84 /* CornersRounded.swift in Sources */,
+				19C7B03E2D8AC02400BF5979 /* PricingCardView.swift in Sources */,
 				19E76A6A2CDA068400FF052B /* LazyVGrid.swift in Sources */,
 				19E76A742CDA11FD00FF052B /* ColorExtension.swift in Sources */,
+				192A9A972D6F011600895BC4 /* TPStyleSelectPopView.swift in Sources */,
 				19E76A752CDA11FD00FF052B /* config.swift in Sources */,
 				19599CAF2CCF693600B9BDB8 /* SwiftUIiOS14DemoApp.swift in Sources */,
+				192A9A952D6EFF9700895BC4 /* TPStyleGiftsContainerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

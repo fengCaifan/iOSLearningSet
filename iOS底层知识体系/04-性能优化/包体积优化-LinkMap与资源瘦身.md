@@ -1,61 +1,95 @@
-# 包体积优化 — LinkMap 与资源瘦身
+# 包体积优化-LinkMap 与资源瘦身
 
-> 一句话总结：
+> 一句话总结：**包体=二进制+资源；Link Map/无用类/图片压缩与 On Demand Resources 组合使用，才能可持续瘦身。**
 
-## 1. 核心概念
+---
 
-<!-- 建议涵盖：
-  - IPA 包组成：可执行文件（Mach-O）+ 资源文件（Assets/Storyboard/配置文件）+ Frameworks
-  - App Thinning：App Slicing / Bitcode / On-Demand Resources
--->
+## 📚 学习地图
 
+- **预计学习时间**：30 分钟
+- **前置知识**：Mach-O 基础
+- **学习目标**：度量 → 裁剪代码与资源
 
+---
 
-## 2. 底层原理
+## 6. 包体积优化
 
-<!-- 建议涵盖：
-  - LinkMap 文件分析：各段（__TEXT / __DATA / __LINKEDIT）大小、各库/文件的贡献
-  - 代码瘦身：
-    - 无用代码检测（基于 LinkMap / otool / objc-class-ref 对比）
-    - 无用方法检测（基于 __objc_selrefs vs __objc_methnames）
-    - Swift 符号裁剪（-Osize、whole-module-optimization）
-    - 段迁移：__TEXT → __RODATA
-  - 资源瘦身：
-    - 无用资源检测工具（LSUnusedResources）
-    - 图片压缩（tinypng / WebP / HEIF）
-    - Asset Catalog 优化
-    - 重复资源检测
-  - 动态库 vs 静态库对包体积的影响
--->
+### 6.1 分析工具
 
+**生成 Link Map**：
 
+```
+Build Settings → Write Link Map File: YES
+编译后生成文件：build/xxx.app/LinkMap-normal-xxx.txt
+```
 
-## 3. 关键问题 & 面试题
+**分析 Link Map**：
 
-<!-- 
-- Q: 如何分析和减小 iOS App 的包体积？
-  A: 
+```
+# 文件结构：
+1. Object files（目标文件）
+2. Sections（段）
+3. Symbols（符号及大小）
 
-- Q: 如何检测项目中的无用代码？
-  A: 
+# 查找大文件：
+grep '.o' linkmap.txt | awk '{print $2, $3}' | sort -k2 -rn | head -20
+```
 
-- Q: 动态库和静态库哪个对包体积更友好？
-  A: 
+### 6.2 优化策略
 
-- Q: App Thinning 的几种方式分别是什么？
-  A: 
--->
+| 优化项 | 具体措施 | 工具 |
+|--------|---------|------|
+| **资源优化** | 压缩图片、移除无用资源 | ImageOptim、Asset Catalog |
+| **代码瘦身** | 移除无用代码、类 | AppCode、Dead Code Stripping |
+| **编译优化** | 优化级别、开启 Bitcode | Build Settings |
+| **动态库** | 懒加载、合并功能相近库 | dlopen |
+| **Swift 优化** | 优化编译器选项、减少泛型 | Build Settings |
 
+**资源优化**：
 
+```bash
+# 使用 ImageOptim 压缩 PNG
+find . -name "*.png" -exec imageoptim {} \;
 
-## 4. 实战应用
+# 使用 Asset Catalog 的 App Thinning
+# Xcode 自动根据设备生成对应尺寸的图片
+```
 
-<!-- 例如：
-  - 包体积优化的完整实践流程
-  - CI 集成包体积监控
--->
+**开启优化选项**：
 
+```
+Build Settings:
+- Dead Code Stripping: YES
+- Optimization Level: Fastest, Smallest [-Os]
+- Strip Debug Symbols During Copy: YES
+- Strip Swift Symbols: YES
+- Make Strings Read-Only: YES
+```
 
+---
 
-## 5. 参考资料
+| **如何降低内存占用？** | 降采样、对象池、及时释放、避免缓存 | ⭐⭐⭐⭐ |
+| **如何检测内存泄漏？** | Instruments Leaks、Memory Graph、MLeaksFinder | ⭐⭐⭐ |
 
+### 7.4 崩溃处理
+
+---
+
+## 8. 参考资料
+
+### 优质文章
+- [iOS App启动优化与二进制重排](https://juejin.cn/post/6844904165773328392)
+- [美团App冷启动治理](https://www.jianshu.com/p/8e0b38719278)
+- [iOS Memory Deep Dive](https://developer.apple.com/videos/play/wwdc2018/416/)
+- [Xcode Instruments: Find Memory Leaks in 5 Minutes](https://medium.com/@chandra.welim/xcode-instruments-find-memory-leaks-in-5-minutes-not-hours-4f80982e3682)
+- [Mastering iOS Profiler Instruments](https://medium.com/@asherazeem25/mastering-ios-profiler-instruments-a-complete-guide-to-performance-optimization-9a4813a059a1)
+- [Crash Analytics in iOS (2026): A Complete Practical Guide](https://medium.com/@garejakirit/crash-analytics-in-ios-2026-a-complete-practical-guide-d2c0b9c0cec5)
+- [The ultimate guide to symbolica ting iOS crash reports](https://www.zoho.com/apptics/digest/ios-crash-debugging-guide.html)
+
+### 开源项目
+- [MLeaksFinder](https://github.com/Tencent/MLeaksFinder) - 腾讯内存泄漏检测工具
+- [OOMDetector](https://github.com/Tencent/OOMDetector) - 腾讯 OOM 监控工具
+- [CocoaLumberjack](https://github.com/CocoaLumberjack/CocoaLumberjack) - 日志框架
+- [PLCrashReporter](https://github.com/microsoft/plcrashreporter) - 崩溃报告框架
+
+### Apple 官方文档

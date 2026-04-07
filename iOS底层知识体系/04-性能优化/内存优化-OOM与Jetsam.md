@@ -1,59 +1,150 @@
-# 内存优化 — OOM 与 Jetsam
+# 内存优化-OOM 与 Jetsam
 
-> 一句话总结：
+> 一句话总结：**Jetsam 在系统内存吃紧时按优先级回收进程；治理要关注 footprint、泄漏、大图与后台存活。**
 
-## 1. 核心概念
+---
 
-<!-- 建议涵盖：
-  - OOM（Out Of Memory）：系统因内存不足而杀掉 App
-  - Jetsam：iOS 内核的内存管理机制（类似 Linux 的 OOM Killer）
-  - 前台 OOM vs 后台 OOM
-  - Dirty Memory / Clean Memory / Compressed Memory
--->
+## 📚 学习地图
+
+- **预计学习时间**：35 分钟
+- **前置知识**：虚拟内存、ARC
+- **学习目标**：内存分类 → OOM 原因 → 策略
+
+---
+
+## 3. 内存优化
+
+### 3.1 内存分类
+
+| 类型 | 说明 | 示例 | 可回收 |
+|------|------|------|--------|
+| **Clean Memory** | 可从磁盘重新加载 | 代码段、只读数据 | ✅ 是 |
+| **Dirty Memory** | 已修改，无法回收 | 堆对象、图片缓存 | ❌ 否 |
+| **Compressed Memory** | 系统压缩的 dirty pages | 不活跃的 dirty pages | ✅ 是（解压后） |
+
+### 3.2 OOM 与 Jetsam
+
+**Jetsam 机制**：
+
+```
+内存压力 → memorystatus_monitor → 按优先级杀进程
+优先级（从高到低）：
+1. 前台 App
+2. Audio App
+3. 后台 App - Recent
+4. 后台 App - Long-term
+5. 后台 App - Suspended
+```
+
+**监控 OOM**：
+
+```swift
+func checkMemoryPressure() {
+    var stats = vm_statistics64()
+    var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+
+    let result = withUnsafeMutablePointer(to: &stats) {
+        $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+            host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+        }
+    }
+
+    if result == KERN_SUCCESS {
+        let free = stats.free_count
+        let active = stats.active_count
+        let inactive = stats.inactive_count
+        let wired = stats.wire_count
+        let total = free + active + inactive + wired
+
+        let usage = Double(active + wired) / Double(total)
+        print("Memory usage: \(usage * 100)%")
+
+        if usage > 0.85 {
+            print("⚠️ High memory pressure!")
+        }
+    }
+}
+```
+
+### 3.3 内存优化策略
+
+**大图降采样**：
+
+```objective-c
+UIImage * downsampleImage(UIImage *image, CGSize size) {
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)UIImageJPEGRepresentation(image, 1), nil);
+
+    NSDictionary *options = @{
+        (__bridge NSString *)kCGImageSourceCreateThumbnailFromImageIfAbsent: @YES,
+        (__bridge NSString *)kCGImageSourceThumbnailMaxPixelSize: @(MAX(size.width, size.height)),
+        (__bridge NSString *)kCGImageSourceShouldCacheImmediately: @YES
+    };
+
+    CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    UIImage *result = [UIImage imageWithCGImage:thumbnail];
+
+    CGImageRelease(thumbnail);
+    CFRelease(source);
+
+    return result;
+}
+```
+
+**图片内存计算**：
+
+```
+1024 x 1024 图片的内存占用：
+- 未解码（磁盘）：~300KB（JPEG 压缩）
+- 解码后（内存）：1024 x 1024 x 4 字节 = 4MB
+- 使用 @3x 设备：1024 x 1024 x 4 x 3 = 12MB
+```
+
+**避免内存泄漏**：
+
+```objective-c
+// ❌ 循环引用
+self.handler = ^{
+    [self doSomething];
+};
+
+// ✅ 使用 weak
+__weak typeof(self) weakSelf = self;
+self.handler = ^{
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if (strongSelf) {
+        [strongSelf doSomething];
+    }
+};
+```
+
+---
 
 
-
-## 2. 底层原理
-
-<!-- 建议涵盖：
-  - Jetsam 机制：内存压力 → memorystatus → 按优先级杀进程
-  - Dirty Memory：已修改的内存页，不可被回收（malloc、UIImage 解码后的数据）
-  - Clean Memory：可以被系统回收再从磁盘重新加载的内存（代码段、mmap 只读文件）
-  - Compressed Memory：系统压缩不活跃的 dirty pages
-  - footprint 与 phys_footprint 的区别
-  - 内存水位线（memory limit）：不同设备不同，可通过 os_proc_available_memory() 获取
-  - App 内存组成：__TEXT / __DATA / Stack / Heap / Memory Mapped Files
--->
+| 问题 | 答案要点 | 难度 |
+|------|----------|------|
+| **卡顿的原因？** | 主线程耗时、离屏渲染、复杂布局、锁等待 | ⭐⭐⭐⭐ |
+| **如何监控卡顿？** | RunLoop Observer、CADisplayLink、子线程 Ping 主线程 | ⭐⭐⭐⭐⭐ |
+| **如何优化离屏渲染？** | shadowPath、shouldRasterize、异步绘制 | ⭐⭐⭐⭐ |
+| **Instruments 如何使用？** | Time Profiler、Allocations、Leaks、Core Animation | ⭐⭐⭐ |
 
 
+---
 
-## 3. 关键问题 & 面试题
+## 8. 参考资料
 
-<!-- 
-- Q: 什么是 OOM？如何监控？
-  A: 
+### 优质文章
+- [iOS App启动优化与二进制重排](https://juejin.cn/post/6844904165773328392)
+- [美团App冷启动治理](https://www.jianshu.com/p/8e0b38719278)
+- [iOS Memory Deep Dive](https://developer.apple.com/videos/play/wwdc2018/416/)
+- [Xcode Instruments: Find Memory Leaks in 5 Minutes](https://medium.com/@chandra.welim/xcode-instruments-find-memory-leaks-in-5-minutes-not-hours-4f80982e3682)
+- [Mastering iOS Profiler Instruments](https://medium.com/@asherazeem25/mastering-ios-profiler-instruments-a-complete-guide-to-performance-optimization-9a4813a059a1)
+- [Crash Analytics in iOS (2026): A Complete Practical Guide](https://medium.com/@garejakirit/crash-analytics-in-ios-2026-a-complete-practical-guide-d2c0b9c0cec5)
+- [The ultimate guide to symbolica ting iOS crash reports](https://www.zoho.com/apptics/digest/ios-crash-debugging-guide.html)
 
-- Q: Dirty Memory 和 Clean Memory 的区别？
-  A: 
+### 开源项目
+- [MLeaksFinder](https://github.com/Tencent/MLeaksFinder) - 腾讯内存泄漏检测工具
+- [OOMDetector](https://github.com/Tencent/OOMDetector) - 腾讯 OOM 监控工具
+- [CocoaLumberjack](https://github.com/CocoaLumberjack/CocoaLumberjack) - 日志框架
+- [PLCrashReporter](https://github.com/microsoft/plcrashreporter) - 崩溃报告框架
 
-- Q: 一张 1024x1024 的图片在内存中占多少空间？
-  A: 
-
-- Q: 如何降低 App 的内存占用？
-  A: 
--->
-
-
-
-## 4. 实战应用
-
-<!-- 例如：
-  - 大图降采样（ImageIO CGImageSourceCreateThumbnailAtIndex）
-  - 内存峰值监控与报警
-  - 内存占用分析工具：Xcode Memory Report / vmmap / Allocations
--->
-
-
-
-## 5. 参考资料
-
+### Apple 官方文档

@@ -557,7 +557,65 @@ Block
 
 ---
 
-## 7. 参考资料
+## 7. Swift Closure 与 Block 互操作
+
+（与上文 OC `Block` 对照阅读。）
+
+### 7.1 Closure 的基本使用
+
+```swift
+// 基本闭包
+let simpleClosure = {
+    print("Hello Closure")
+}
+simpleClosure()
+
+// 带参数的闭包
+let calculateClosure = { (a: Int, b: Int) -> Int in
+    return a + b
+}
+let result = calculateClosure(10, 20) // 30
+
+// 捕获外部变量
+let multiplier = 3
+let multiplyClosure = { (num: Int) -> Int in
+    return num * multiplier
+}
+```
+
+### 7.2 闭包捕获列表
+
+```swift
+var count = 0
+let closure = { [count] in
+    count += 1
+    print("Count: \(count)")
+}
+```
+
+| 捕获类型 | 说明 | 适用场景 |
+|---------|------|----------|
+| `[unowned self]` | 无主引用，不会增加引用计数 | `self` 不会被提前释放 |
+| `[weak self]` | 弱引用 | `self` 可能被提前释放 |
+| `[var variable]` | 显式捕获变量 | 需要修改变量时 |
+
+### 7.3 Swift 闭包 vs OC Block
+
+| 特性 | OC Block | Swift Closure |
+|------|----------|---------------|
+| **类型安全** | 弱类型 | 强类型 |
+| **变量捕获** | 默认值捕获 | 捕获列表（可读写） |
+| **内存管理** | 手动 copy | ARC 自动管理 |
+| **循环引用** | `__weak` 或 `__block` | `weak`/`unowned` |
+
+### 7.4 OC / Swift 互操作要点
+
+- OC 持有 Swift 闭包时，需保证桥接类型与生命周期正确（避免过早释放）。
+- Swift 调用 OC `typedef` 的 Block 时，可直接使用 trailing closure 语法赋值。
+
+---
+
+## 8. 参考资料
 
 - [Apple 开源 libclosure 源码](https://opensource.apple.com/source/libclosure/)
 - [Clang Block 语言规范](https://clang.llvm.org/docs/BlockLanguageSpec.html)

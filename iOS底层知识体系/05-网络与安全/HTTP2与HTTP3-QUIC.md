@@ -1,61 +1,134 @@
 # HTTP/2 与 HTTP/3 (QUIC)
 
-> 一句话总结：
+> 一句话总结：**HTTP/2 用二进制分帧与多路复用缓解应用层 HOL；HTTP/3 将传输搬到 QUIC(UDP) 上，减少 TCP 队头阻塞并支持连接迁移。**
 
-## 1. 核心概念
+---
 
-<!-- 建议涵盖：
-  - HTTP/1.1 的瓶颈：队头阻塞（Head-of-Line Blocking）、无法多路复用
-  - HTTP/2 的核心改进：二进制帧、多路复用、头部压缩（HPACK）、服务端推送
-  - HTTP/3 的核心改进：基于 QUIC（UDP）、解决 TCP 队头阻塞
--->
+## 📚 学习地图
 
+- **预计学习时间**：30 分钟
+- **前置知识**：HTTP/1.1、TLS
+- **学习目标**：帧/流/QUIC 取舍 → 工程侧启示
 
+---
 
-## 2. 底层原理
+### 3.2 HTTP/2
 
-<!-- 建议涵盖：
-  - HTTP/2：
-    - 二进制分帧层（Frame → Stream → Connection）
-    - 多路复用的实现：一个 TCP 连接上的多个 Stream
-    - HPACK 头部压缩：静态表 + 动态表 + Huffman 编码
-    - TCP 层队头阻塞仍然存在
-  - HTTP/3 (QUIC)：
-    - 为什么基于 UDP 而非 TCP？
-    - QUIC 的多路复用：Stream 级别独立，无队头阻塞
-    - 0-RTT 连接建立
-    - 连接迁移（Connection Migration）：基于 Connection ID 而非四元组
-    - iOS 中 URLSession 对 HTTP/2、HTTP/3 的支持
--->
+**核心改进**：
 
+**1. 二进制分帧层**：
 
+```
+HTTP/1.1 文本格式 → HTTP/2 二进制格式
+Frame：HTTP/2 最小单位
+Stream：双向字节流，由多个 Frame 组成
+```
 
-## 3. 关键问题 & 面试题
+**2. 多路复用**：
 
-<!-- 
-- Q: HTTP/2 相比 HTTP/1.1 有什么改进？
-  A: 
+```
+一个 TCP 连接可以并发多个 Stream
+解决了 HTTP/1.1 的 HOL 阻塞
+但仍受 TCP 层 HOL 阻塞影响（丢包导致整个 TCP 连接阻塞）
+```
 
-- Q: HTTP/2 解决了队头阻塞吗？为什么还需要 HTTP/3？
-  A: 
+**3. 头部压缩（HPACK）**：
 
-- Q: QUIC 为什么选择 UDP 作为底层协议？
-  A: 
+```
+静态字典：常见头部（如 method、path）
+动态字典：连接期间的头部
+Huffman 编码：压缩头部值
+效果：Header 大小减少 80-90%
+```
 
-- Q: HTTP/3 的 0-RTT 是如何实现的？
-  A: 
--->
+**4. 服务端推送**：
 
+```
+服务器可以主动推送资源（无需请求）
+示例：请求 HTML 时，服务器主动推送 CSS、JS
+```
 
+### 3.3 HTTP/3（QUIC）
 
-## 4. 实战应用
+**核心改进**：
 
-<!-- 例如：
-  - 如何确认 App 的请求使用了 HTTP/2？
-  - iOS 中启用 HTTP/3 的配置
--->
+**1. 基于 UDP 的 QUIC 协议**：
 
+```
+HTTP/2：TCP + TLS
+HTTP/3：QUIC（UDP）+ 内置 TLS
 
+QUIC = Quick UDP Internet Connections
+```
 
-## 5. 参考资料
+**2. 解决 TCP 层 HOL 阻塞**：
 
+```
+HTTP/2：Stream 1 丢包 → Stream 2、3 都阻塞
+HTTP/3：Stream 1 丢包 → 只影响 Stream 1，Stream 2、3 继续传输
+```
+
+**3. 0-RTT 和 1-RTT 握手**：
+
+```
+HTTP/2 + TLS 1.2：
+- TCP 三次握手（1-RTT）
+- TLS 握手（2-RTT）
+- 总共：3-RTT
+
+HTTP/3 + TLS 1.3：
+- 首次连接：1-RTT
+- 恢复连接：0-RTT（复用之前的连接参数）
+- 连接建立速度提升 33%
+```
+
+**4. 连接迁移**：
+
+```
+HTTP/2：IP 或端口变化，连接断开（四元组标识）
+HTTP/3：Connection ID 标识，支持网络切换（WiFi → 4G）
+```
+
+**HTTP/2 vs HTTP/3 对比**：
+
+| 特性 | HTTP/2 | HTTP/3 |
+|------|--------|--------|
+| **传输层** | TCP | QUIC（UDP） |
+| **连接建立** | 3-RTT | 1-RTT（首次），0-RTT（恢复） |
+| **HOL 阻塞** | Stream 级（有 TCP 层阻塞） | Stream 级（无 TCP 层阻塞） |
+| **网络切换** | 不支持 | 支持（连接迁移） |
+| **性能** | 基准 | 快 12-33% |
+
+---
+
+---
+
+## 8. 参考资料
+
+### 优质文章
+- [HTTP/2, HTTP/3, and QUIC: The Protocol Evolution](https://medium.com/@hosseinnejati/http-2-http-3-and-quic-the-protocol-evolution-that-affects-your-architecture-b28b006b20e9)
+- [HTTP3 vs HTTP2: Performance Comparison](https://www.catchpoint.com/http3-vs-http2)
+- [HTTP/3 vs HTTP/2: Cloudflare Performance](https://blog.cloudflare.com/http-3-vs-http-2/)
+- [iOS Interview Guide: Networking Layer Design](https://medium.com/@dhruvinbhalodiya752/ios-interview-guide-how-to-build-a-scalable-networking-layer-2420324806f5)
+- [Mastering API Architecture in iOS: 2026 Guide](https://www.zignuts.com/blog/mastering-api-architecture-in-ios)
+- [Designing Resilient Networking Layers in Swift](https://medium.com/@shubhamsanghavi100/designing-resilient-networking-data-layers-in-swift-ios-offline-support-retry-logic-5973dd723b9d)
+
+### 协议文档
+- [RFC 9114 - HTTP/3](https://httpwg.org/specs/rfc9114.html)
+- [RFC 9000 - QUIC Protocol](https://quicwg.org/base-drafts/rfc9000.html)
+- [RFC 8446 - TLS 1.3](https://tlswg.org/rfc8446/)
+
+### 开源项目
+- [Alamofire](https://github.com/Alamofire/Alamofire) - Swift 网络库
+- [Moya](https://github.com/Moya/Moya) - 网络层抽象
+
+---
+
+**最后更新**：2026-04-07
+**状态**：✅ 已完成
+
+**Sources:**
+- [HTTP/2, HTTP/3, and QUIC: The Protocol Evolution](https://medium.com/@hosseinnejati/http-2-http-3-and-quic-the-protocol-evolution-that-affects-your-architecture-b28b006b20e9)
+- [HTTP/3 vs HTTP/2: Cloudflare Performance](https://blog.cloudflare.com/http-3-vs-http-2/)
+- [iOS Interview Guide: Networking Layer Design](https://medium.com/@dhruvinbhalodiya752/ios-interview-guide-how-to-build-a-scalable-networking-layer-2420324806f5)
+- [Mastering API Architecture in iOS: 2026 Guide](https://www.zignuts.com/blog/mastering-api-architecture-in-ios)

@@ -1,63 +1,70 @@
-# 设计一个 APM SDK
+# 设计一个 APM-SDK
 
-> 一句话总结：
+> 一句话总结：**APM = 信号采集（卡顿/FPS/内存/启动/网络/崩溃） + 队列持久化 + 批量上报 + 后台符号化与聚合；设计重点是低开销、可解释、隐私合规。**
 
-## 1. 需求分析
+---
 
-<!-- 建议涵盖：
-  - 四大核心模块：崩溃监控、卡顿监控、网络监控、内存监控
-  - 扩展模块：启动耗时、页面加载耗时、电量、磁盘、CPU
-  - 非功能需求：低侵入、低性能开销、数据准确、可灰度
--->
+## 1. 需求澄清
 
+| 类型 | 指标 |
+|------|------|
+| **崩溃** | Mach Exception / Signal / Uncaught NSException，栈回溯与 dSYM |
+| **卡顿** | 主线程 RunLoop / 子线程 ping、阈值与采样 |
+| **启动** | pre-main / first screen / 关键接口首包 |
+| **性能** | 电池、CPU、内存 foot print、关键 VC 耗时 |
+| **网络** | 成功率、耗时、DNS/TLS 分段（若可） |
 
+---
 
-## 2. 架构设计
+## 2. 架构
 
-<!-- 建议涵盖：
-  - 整体架构：
-    - SDK Core：初始化、配置管理、开关控制、采样率
-    - Monitor 模块：各监控能力独立模块化
-      - CrashMonitor：Mach 异常 + Signal + NSException
-      - LagMonitor：RunLoop Observer + 堆栈采集
-      - MemoryMonitor：定时采样 + OOM 检测
-      - NetworkMonitor：URLProtocol 拦截 / NSURLSessionTaskMetrics
-    - Reporter 模块：数据聚合 + 压缩 + 上报
-    - Storage 模块：本地持久化（SQLite / mmap）
-  - 数据流：Monitor 采集 → 本地 Storage → 聚合 → 上报 → 后端分析
--->
+```text
+Probe（Hook / RunLoop Observer / Method Swizzle）
+    → EventNormalizer（打标签 session、user、build）
+    → DiskQueue（SQLite / 文件 + 限长）
+    → Uploader（batch + gzip + 退避）
+    → Dashboard（服务端聚合，不在客户端）
+```
 
+### 2.1 卡顿（旧笔记《卡顿、崩溃》）
 
+- **FPS**：`CADisplayLink` 估帧，适合仪表盘，不易定位栈。  
+- **RunLoop Observer**：监听 BeforeSources / AfterWaiting + 子线程 + 信号量，**超时计数**认为卡顿。  
+- **堆栈**：`NSThread.callStackSymbols` 粗；线上常见 **PLCrashReporter** / 自研基于 `backtrace` + 自建存储。
 
-## 3. 关键设计决策
+### 2.2 崩溃
 
-<!-- 
-  - 采样率控制：全量 vs 采样，平衡数据量与性能开销
-  - 上报策略：实时上报 vs 批量上报 vs Wi-Fi 上报
-  - 符号化时机：客户端 vs 服务端（通常服务端）
-  - 堆栈聚合算法：相同堆栈归类，生成 Issue
-  - SDK 自身的稳定性保障：避免 SDK 自身导致崩溃
-  - 隐私合规：用户授权、数据脱敏
--->
+- **`NSSetUncaughtExceptionHandler`** + Signal（SIGABRT/SIGSEGV…）注册；注意 **嵌套崩溃** 与 handler 内安全代码。
+- 崩溃瞬间写 **原子写文件**，下次启动上报。
 
+### 2.3 启动监控
 
+- pre-main：`DYLD_PRINT_STATISTICS`（调试）+ 生产用 **method trace/自定义阶段埋点**。  
+- 业务冷启动：从 `main` → 首屏渲染 / 首接口。
 
-## 4. 参考框架
+### 2.4 内存
 
-<!-- 
-  - 微信 Matrix
-  - 字节 Slardar
-  - Firebase Performance
-  - 开源：KSCrash / PLCrashReporter / GodEye
--->
+- 定时 `phys_footprint`（`task_info`）采样；结合 **OOM 退出原因**（Jetsam）只能用间接指标 + 前后台切换。
 
+---
 
+## 3. 隐私与性能
 
-## 5. 面试回答要点
+- 默认可关闭详细上报；敏感字段 hash/截断。  
+- **异步 + 合并**；避免在 RunLoop 回调里做重 I/O。  
+- Swizzle 需 **幂等、白名单类**，减少意外副作用。
 
-<!-- 
-  - 先画全局架构图
-  - 然后深入一个模块的实现细节（推荐崩溃或卡顿）
-  - 讨论 SDK 设计的工程考量（性能、稳定性、可扩展性）
--->
+---
 
+## 4. 面试题
+
+- **卡顿与 ANR 区别？** iOS 无 Android 式 ANR，但 Watchdog 会杀；监控目标是主线程卡死时长。  
+- **如何避免监控本身卡主线程？** 堆栈采集线程、限制频率、临界区无锁数据结构。  
+
+---
+
+## 5. 参考资料
+
+- 旧笔记：`读书笔记/iOS自学笔记/专题——卡顿、崩溃.md`
+- [PLCrashReporter](https://github.com/microsoft/plcrashreporter)
+- 《卡顿优化-监控与治理》与《APM-崩溃收集与符号化》同目录笔记

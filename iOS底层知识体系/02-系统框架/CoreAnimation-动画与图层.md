@@ -1,57 +1,95 @@
-# Core Animation 动画与图层
+# CoreAnimation-动画与图层
 
-> 一句话总结：
+> 一句话总结：**UIView 动画封装隐式动画与布局；CABasicAnimation 等显式动画直接作用于 layer 属性与 timing。**
 
-## 1. 核心概念
+---
 
-<!-- 建议涵盖：
-  - CALayer 的 Model Layer vs Presentation Layer vs Render Tree
-  - 隐式动画与显式动画
-  - CATransaction
--->
+## 📚 学习地图
 
+- **预计学习时间**：30 分钟
+- **前置知识**：UIView/CALayer
+- **学习目标**：隐式/显式动画 → 事务与渲染关系
 
+---
 
-## 2. 底层原理
+## 3. UIKit 动画
 
-<!-- 建议涵盖：
-  - 动画的本质：Render Server 进程中的插值计算
-  - CABasicAnimation / CAKeyframeAnimation / CATransition / CAAnimationGroup
-  - Spring Animation 底层参数
-  - UIView Animation Block 的实现原理（CATransaction + 隐式动画）
-  - presentationLayer 的作用与动画过程中的 hit testing
-  - CADisplayLink 与帧率控制
--->
+### 3.1 UIView Animation
 
+**基础动画**：
 
+```swift
+UIView.animate(withDuration: 0.3) {
+    view.alpha = 0.5
+    view.frame.origin.x += 100
+}
+```
 
-## 3. 关键问题 & 面试题
+**Spring 动画**：
 
-<!-- 
-- Q: 隐式动画和显式动画的区别？
-  A: 
+```swift
+UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0.5, options: .curveEaseInOut) {
+    view.center = CGPoint(x: 200, y: 200)
+}
+```
 
-- Q: UIView 的 animateWithDuration 底层是怎么实现的？
-  A: 
+**Options**：
 
-- Q: 动画过程中点击按钮为什么可能无响应？怎么解决？
-  A: 
+```swift
+UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseInOut, .allowUserInteraction]) {
+    // .allowUserInteraction：动画期间允许交互
+    // .curveEaseIn：缓入
+    // .curveEaseOut：缓出
+    // .repeat：重复
+    // .autoreverse：反向播放
+}
+```
 
-- Q: 如何实现一个自定义的转场动画？
-  A: 
--->
+### 3.2 CABasicAnimation
 
+**CABasicAnimation**：
 
+```swift
+let animation = CABasicAnimation(keyPath: "position.x")
+animation.toValue = 100
+animation.duration = 0.3
+animation.fillMode = .forwards
+animation.isRemovedOnCompletion = false
 
-## 4. 实战应用
+view.layer.add(animation, forKey: "slide")
+```
 
-<!-- 例如：
-  - 复杂动画的性能优化
-  - 交互式动画（UIViewPropertyAnimator）
-  - Lottie 动画框架的原理简析
--->
+**CAKeyframeAnimation**：
 
+```swift
+let animation = CAKeyframeAnimation(keyPath: "position")
+animation.values = [
+    CGPoint(x: 0, y: 0),
+    CGPoint(x: 100, y: 0),
+    CGPoint(x: 100, y: 100)
+]
+animation.keyTimes = [0, 0.5, 1.0]
+animation.duration = 1.0
 
+view.layer.add(animation, forKey: "path")
+```
 
-## 5. 参考资料
+---
 
+## 8. 参考资料
+
+### 优质文章
+- [iOS 事件传递与响应机制](https://developer.apple.com/documentation/uikit/uievent)
+- [Core Animation Programming Guide](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CoreAnimation_guide/)
+- [SwiftUI Tutorials](https://developer.apple.com/tutorials/swiftui/)
+- [Human Interface Guidelines - iOS](https://developer.apple.com/design/human-interface-guidelines/ios)
+
+### 官方文档
+- [UIKit - Event Handling](https://developer.apple.com/documentation/uikit/uievent)
+- [Core Animation](https://developer.apple.com/quartzcore/)
+- [SwiftUI](https://developer.apple.com/documentation/swiftui)
+
+---
+
+**最后更新**：2026-04-07
+**状态**：✅ 已完成

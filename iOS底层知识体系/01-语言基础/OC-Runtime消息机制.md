@@ -1020,7 +1020,40 @@ id instance = [[subclass alloc] init];
 
 ---
 
-## 5. 参考资料
+## 5. 知识图谱总结
+
+```
+OC Runtime（objc / objc_msgSend）
+├── 定位
+│   ├── OC 的动态性：类、方法、协议等在运行时可查、可改、可加
+│   └── 编译时 `[obj sel]` → 运行时 `objc_msgSend(id, SEL, ...)`
+├── 对象与类
+│   ├── 实例：isa → 类对象；类对象 isa → 元类（方法表里含类方法）
+│   ├── class_t / ivar / property / protocol 列表（版本与 ABI 以当前 runtime 为准）
+│   └── 继承链 + 元类链：方法查找沿父类上行
+├── 消息发送（§2.3）
+│   ├── 缓存 fast path（class 方法缓存）→ 慢速查 method_list
+│   ├── sel 注册为唯一 SEL；IMP 为实际函数指针
+│   └── 找不到进入动态解析 / 转发
+├── 动态解析（resolve…）
+│   ├── +resolveInstanceMethod: / +resolveClassMethod: 可 class_addMethod 补 IMP
+│   └── 仍无则进入转发
+├── 转发三阶段（§2.4）
+│   ├── forwardingTargetForSelector: → 换接收者
+│   ├── methodSignatureForSelector: + forwardInvocation: → NSInvocation 包装派发
+│   └── 终局：doesNotRecognizeSelector:（未处理消息）
+├── 常见动态能力（§2.5 起）
+│   ├── Category：编译期产物 + 运行时 attachMethods；无实例变量槽位
+│   ├── Associated Objects：补「伪属性」；需 objc_setAssociatedObject
+│   ├── Method Swizzling：交换 IMP（+load、类簇、命名空间风险）
+│   └── 动态类 / 增方法 / 遍历成员（class_addMethod、class_copyIvarList 等）
+└── 实战脉络（§4）
+    ├── 埋点 / AOP、容器防崩、ORM、动态归档、热补丁思路（合规与审核另论）
+```
+
+---
+
+## 6. 参考资料
 
 ### 官方文档
 - [Objective-C Runtime Programming Guide](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/)

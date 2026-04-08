@@ -83,6 +83,36 @@ NSLog(@"%@", [^{ NSLog(@"%d", age); } class]);         // __NSStackBlock__（匿
 
 所以在 MRC 中，Block 属性只能使用 `copy` 关键字；在 ARC 中，`copy` 和 `strong` 均可，**但为了代码语义清晰和 MRC/ARC 兼容，推荐统一使用 `copy`**。
 
+### 1.3 逃逸（Escaping）与 Block 生命周期
+
+**逃逸**指的是：Block/闭包在**「包住它的那个函数已经 return 之后」**，仍然可能被调用，或仍被某处（队列、属性、网络回调等）持有。
+
+| 对比 | 说明 |
+|------|------|
+| **不逃逸** | 只在当前函数调用栈上、在 **return 之前**同步执行完（例如本函数里立刻调用的内联逻辑），不会活过这次函数返回 |
+| **逃逸** | 放进 `dispatch_async`、赋给 `completion` 属性、交给 `NSURLSession` 等 → 函数先结束，**以后某时刻**才执行 Block |
+
+OC **没有** `escaping` 关键字，但概念完全适用：**一旦逃逸**，栈上的 Block 不能指望「函数返回后还存在」，所以 ARC 会在常见逃逸路径上 **自动 copy 到堆**（与上一节「传给 GCD、赋给 strong 指针」一致），否则会出现悬空或未定义行为。
+
+典型 **事实逃逸**场景：`dispatch_async/after`、`animateWithDuration`、`performBlock:` 类 API、属性里存的 completion、`-[NSURLSession dataTaskWithRequest:completionHandler:]` 等。
+
+**逃逸闭包（语义）与堆 Block（实现）——怎么类比、什么关系？**
+
+| 说法 | 含义 |
+|------|------|
+| **逃逸** | 描述 **时间问题**：这段代码是否可能在「外层函数返回之后」才被调用或仍被持有。 |
+| **堆 Block (`__NSMallocBlock__`)** | 描述 **存储位置**：Block 对象（含截获数据）是否在堆里，从而**不随栈帧销毁而失效**。 |
+
+**关系（可当作记忆抓手，不是数学等同）：**
+
+- **有逃逸需求 + Block 截获了 auto 变量**：仅靠栈 Block 在 return 后会「悬空」，所以 ARC 会在逃逸路径上 **`copy` 到堆**，得到 **MallocBlock** —— 这是「逃逸 → 往往需要堆」在 OC 里最常出现的一条因果链。
+- **仍不等同**：无截获的 **Global Block** 既不占栈捕获区，也**无需**为逃逸单独上堆，但业务上照样可以传给 GCD（逃逸的是「调用时机」，全局一份代码仍合法）。
+- **非逃逸**在 OC 里没有关键字，大致对应：**只在当前函数里同步跑完**、不把 Block 交给异步/属性 —— 往往连「栈 Block 还未 copy」的窗口都很短，风险边界比逃逸小得多。
+
+**Swift**：`@escaping` 标注的是**语义契约**（可晚于调用者结束）；具体分配在栈/堆/对象由编译器决定。**和 OC 互操作、或做对照记忆时**，可把 **`@escaping` ≈ 「可能要像堆 Block 那样活得久」**；纯 Swift 闭包未必逐个映射到 runtime 的 `__NSMallocBlock__`，但**生命周期问题同一类**。
+
+与 **Swift** 语法细节：见下文 **§7.5**（含与堆 Block 对照的一句小结）。
+
 ---
 
 ## 2. 底层原理
@@ -116,15 +146,24 @@ NSLog(@"%@", [^{ NSLog(@"%d", age); } class]);         // __NSStackBlock__（匿
 | 变量类型 | 截获方式 | 能否在 Block 内修改 |
 |---------|---------|------------------|
 | `auto` 局部变量（基础数据类型） | **值传递**，只截获其值 | ❌ 不能（const 语义） |
-| `auto` 局部变量（对象类型） | **连同所有权修饰符一起截获** | ❌ 不能重新赋值（但能改属性） |
+| `auto` 局部变量（对象类型） | **连同所有权修饰符一起截获**（见下） | ❌ 不能重新赋值（但能改属性） |
 | `static` 局部变量 | **指针传递** | ✅ 能 |
 | 全局变量（含静态全局变量） | **不截获，直接访问** | ✅ 能 |
 | `__block` 修饰的变量 | 包装为 `__Block_byref` 结构体，截获**其指针** | ✅ 能 |
 
-**auto 对象类型"连同所有权修饰符一起截获"的详细说明**：
-- 当 Block 在**栈上**时：不会对 auto 对象类型产生强引用（因为栈 Block 随时会释放，没必要额外操作）
-- 当 Block **copy 到堆上**时：会调用 Block 内部的 `copy_helper` 函数，根据 auto 对象的修饰符（`__strong`、`__weak`、`__unsafe_unretained`）来对对象形成对应的**强引用或弱引用**
-- 当 Block **从堆上移除**时：会调用 `dispose_helper` 函数，执行 auto 对象的 `release`
+**「连同所有权修饰符一起截获」在说什么？（与栈/堆的关系）**
+
+这句话指的是：**编译器在 Block 结构体里为 `auto` 对象生成的捕获成员，其内存管理语义与外界的 `__strong` / `__weak` / `__unsafe_unretained` 一致**，并由（可能存在的）`copy_helper` / `dispose_helper` 在 **Block 在栈↔堆之间迁移或销毁** 时落实，而不是说「标题在描述：只要截获就立刻对对象 `retain` 一次」。
+
+与 **知识小集00** 一致的工程理解可以拆成两层：
+
+| 层次 | 含义 |
+|------|------|
+| **截获（结构体层面）** | 对象指针（及对应所有权语义）进入 Block 的 captures，便于 Block 体内通过指针找对象。 |
+| **引用计数（运行时层面）** | **`__strong`**：栈 Block 阶段通常 **不再额外 `retain`**（块随栈帧结束即失效，再去 retain 无意义；小集表述为「没必要额外操作」）；**copy 到堆**时，`copy_helper` 按 `__strong` **`retain` 捕获对象**，`dispose_helper` 配对 **`release`**。 |
+| | **`__weak` / `__unsafe_unretained`**：copy 到堆时按语义登记弱引用或不接管生命周期，**不是**笼统地「一律 `release` 一遍」。 |
+
+因此：**标题讲的是「捕获语义 = 跟修饰符走」**；下面三条讲的是 **同一句口诀在栈 Block / 堆 Block 两阶段的实际簿记**，并不是标题与正文「对不上」，而是以前容易把「截获」误读成「当场 retain」。若需原文对照，可见 `读书笔记/iOS自学笔记/知识小集00——基础知识体系.md` 中「截获变量 / auto 对象类型」一节。
 
 ```objc
 int a = 1;            // 值传递，Block 内无法修改
@@ -547,7 +586,8 @@ Block
 │   ├── 赋给 __strong 指针
 │   ├── 作为返回值
 │   ├── 传入 Foundation/GCD 的 Block 参数
-│   └── 手动调用 copy
+│   ├── 手动调用 copy
+│   └── 与「逃逸」对应：宿主函数 return 后仍可能执行 → 需堆 Block / 稳定捕获
 └── 循环引用
     ├── 原因：self → Block → self（strong 截获）
     ├── 方案1：__weak + __strong dance（推荐）
@@ -607,11 +647,34 @@ let closure = { [count] in
 | **变量捕获** | 默认值捕获 | 捕获列表（可读写） |
 | **内存管理** | 手动 copy | ARC 自动管理 |
 | **循环引用** | `__weak` 或 `__block` | `weak`/`unowned` |
+| **逃逸 vs 存储** | 事实逃逸 + 截获 auto → 常 `copy` 为 **堆 Block** | `@escaping` 标**语义**；分配策略由编译器决定（见 §1.3、§7.5） |
 
 ### 7.4 OC / Swift 互操作要点
 
 - OC 持有 Swift 闭包时，需保证桥接类型与生命周期正确（避免过早释放）。
 - Swift 调用 OC `typedef` 的 Block 时，可直接使用 trailing closure 语法赋值。
+
+### 7.5 逃逸与非逃逸（`@escaping`）
+
+Swift 3 起，**函数参数中的闭包类型默认是「非逃逸」（non-escaping）**：编译器假定它**只会在当前函数 `return` 之前**被调用（或同步用完），因此可以做更多优化，且在内联闭包里对 `self` 的捕获规则也更宽松。
+
+一旦闭包需要 **活过当前函数**（异步、存属性、转交给别的对象以后再调），必须在参数上标 **`@escaping`**：
+
+```swift
+func doWorkNow(_ body: () -> Void) {
+    body() // 仅同步调用 → 默认 nonescaping 即可
+}
+
+func doWorkLater(_ body: @escaping () -> Void) {
+    DispatchQueue.main.async {
+        body() // 本函数 return 之后才执行 → 必须 escaping
+    }
+}
+```
+
+**和 OC Block 的对应关系**：OC 里「丢进 GCD / 属性 / 网络回调」的 Block，本质上都是 **逃逸**；若还截获了 auto 变量，ARC 常会 **copy 成堆 Block**，与 **§1.3** 表格中的「逃逸 ↔ 堆」一条链一致。Swift 用 `@escaping` 把「会逃逸」变成一种**显式契约**，读 API 时能立刻看出来闭包可能晚于调用者结束。
+
+**类比小结**：`@escaping` 是**语言层的「会不会活过本次调用」**；堆 Block 是 **OC runtime 里常见的一种落点**（尤其是「逃逸 + 有截获」），二者 **问题域相同（生命周期）** ，**层级不同（语义 vs 对象存在哪）**。纯 Swift 闭包不一定等价于某个 `__NSMallocBlock__`，但和 OC Block 对照复习时可以这样记。
 
 ---
 

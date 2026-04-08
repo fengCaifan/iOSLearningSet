@@ -8,7 +8,7 @@
 
 - **预计学习时间**：30 分钟
 - **前置知识**：多线程基础
-- **学习目标**：理解 RunLoop → 掌握核心用法 → 解决实际面试题
+- **学习目标**：理解 RunLoop → 实战场景与代码 → 面试题与常见陷阱
 
 ---
 
@@ -647,7 +647,7 @@ class.drawsAsynchronously = YES;
 
 **2. RunLoop 卡顿监控**
 
-参见前面 4.4 节的完整实现
+参见前面 3.4 节的完整实现
 
 **3. 系统工具**
 
@@ -664,136 +664,9 @@ class.drawsAsynchronously = YES;
 
 ---
 
-## 3. 面试题 & 常见问题
+## 3. 实战应用（完整代码）
 
-### 3.1 面试高频题
-
-| 问题 | 答案要点 | 难度 |
-|------|----------|------|
-| **什么是 RunLoop？** | 事件处理循环，让线程有活时工作、没活时休眠 | ⭐ |
-| **RunLoop 和线程的关系？** | 一对一，主线程自动开启，子线程需手动启动 | ⭐ |
-| **为什么 NSTimer 在滑动时停止？** | 滑动时 Mode 切换为 TrackingMode，Timer 在 DefaultMode 下 | ⭐⭐ |
-| **如何解决 Timer 滑动停止？** | 加入 CommonModes 或用 GCD 定时器 | ⭐⭐ |
-| **如何实现常驻线程？** | 子线程 RunLoop 添加 Port，while + runMode 循环 | ⭐⭐⭐ |
-| **RunLoop 的 Mode 有哪几种？** | Default、Tracking、Common、Initialization、GSEventReceive | ⭐⭐ |
-| **Source0 和 Source1 的区别？** | Source0 手动唤醒，Source1 基于 port 自动唤醒 | ⭐⭐ |
-| **RunLoop 的运行流程？** | Entry → BeforeTimers → BeforeSources → 处理事件 → BeforeWaiting → 休眠 → 唤醒 → AfterWaiting → 处理消息 → 循环 | ⭐⭐⭐ |
-| **Observer 可以监听哪些状态？** | Entry、BeforeTimers、BeforeSources、BeforeWaiting、AfterWaiting、Exit | ⭐⭐ |
-| **卡顿监控的原理？** | 监听 RunLoop 状态变化，检测状态停留时间是否超阈值 | ⭐⭐⭐ |
-| **一次性 Timer 和重复 Timer 的区别？** | 一次性触发后自动移除，重复需要手动 invalidate | ⭐ |
-| **performSelector:afterDelay: 在子线程不生效？** | 依赖 RunLoop 的 Timer，子线程默认没有 RunLoop | ⭐⭐ |
-| **RunLoop 与 UI 渲染的关系？** | BeforeWaiting 时提交 CATransaction，触发渲染；必须在 16.67ms 内完成才能保持 60FPS | ⭐⭐⭐ |
-| **CADisplayLink 与 NSTimer 的区别？** | CADisplayLink 与屏幕刷新率同步，更适合 UI 动画；NSTimer 是固定时间间隔 | ⭐⭐ |
-| **什么是离屏渲染？** | 渲染到缓冲区而非直接显示，会触发额外性能开销；圆角、阴影、毛玻璃会触发 | ⭐⭐⭐ |
-| **如何优化滑动流畅度？** | 异步绘制、减少图层数量、避免离屏渲染、按需渲染、使用 RunLoop 休眠时机处理任务 | ⭐⭐⭐ |
-| **为什么是 16.67ms？** | 60Hz 屏幕刷新率，每帧 1000ms/60≈16.67ms；超过则掉帧 | ⭐⭐ |
-| **卡顿产生的原理？** | 主线程被阻塞导致 RunLoop 处理时间超过 16.67ms，无法在屏幕刷新前完成渲染 | ⭐⭐⭐ |
-
-### 3.2 常见陷阱
-
-#### performSelector 原理
-
-```objective-c
-// performSelector:withObject:afterDelay: 底层依赖 RunLoop 的 Timer
-[self performSelector:@selector(task) withObject:nil afterDelay:1.0];
-
-// 滑动时不执行的原因：Timer 默认在 DefaultMode 下
-// 解决：包装一层 NSPort 或者改用 dispatch_after
-```
-
-#### UI 渲染相关陷阱
-
-**1. 频繁调用 setNeedsDisplay 导致卡顿**
-
-```objective-c
-// ❌ 错误：在滑动时频繁刷新
-- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
-    [self.view setNeedsDisplay]; // 每次滑动都触发重绘
-}
-
-// ✅ 正确：使用 CADisplayLink 节流
-- (void)startMonitoring {
-    self.displayLink = [CADisplayLink displayLinkWithTarget:self
-                                                     selector:@selector(updateUI)];
-    [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop]
-                            forMode:NSRunLoopCommonModes];
-}
-
-- (void)updateUI {
-    // 限制刷新频率
-    if (self.needsUpdate) {
-        self.needsUpdate = NO;
-        [self.view setNeedsDisplay];
-    }
-}
-```
-
-**2. 主线程阻塞导致掉帧**
-
-```objective-c
-// ❌ 错误：在主线程进行耗时操作
-- (void)tableView:(UITableView *)tableView
-    willDisplayCell:(UITableViewCell *)cell
-forRowAtIndexPath:(NSIndexPath *)indexPath {
-    // 图片解码很耗时
-    UIImage *image = [UIImage imageWithData:data];
-    cell.imageView.image = image;
-}
-
-// ✅ 正确：异步解码
-- (void)tableView:(UITableView *)tableView
-    willDisplayCell:(UITableViewCell *)cell
-forRowAtIndexPath:(NSIndexPath *)indexPath {
-    dispatch_async(dispatch_get_global_queue(0, 0), ^{
-        UIImage *image = [self decodeImage:data];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            cell.imageView.image = image;
-        });
-    });
-}
-```
-
-**3. 离屏渲染导致卡顿**
-
-```objective-c
-// ❌ 错误：会触发离屏渲染
-view.layer.cornerRadius = 10;
-view.layer.masksToBounds = YES;
-
-// ✅ 优化：使用 shadowPath 避免离屏渲染
-view.layer.shadowOpacity = 0.5;
-view.layer.shadowColor = [UIColor blackColor].CGColor;
-view.layer.shadowOffset = CGSizeMake(0, -2);
-view.layer.shadowRadius = 3;
-// 关键：设置 shadowPath 避免离屏渲染
-view.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:view.bounds
-                                                  cornerRadius:10].CGPath;
-```
-
-**4. 未在正确时机提交 CATransaction**
-
-```objective-c
-// ⚠️ 注意：隐式动画会在 RunLoop BeforeWaiting 时自动提交
-// 但如果在循环中修改，可能导致多次提交
-
-// ❌ 错误：循环中多次触发隐式动画
-for (UIView *view in views) {
-    view.alpha = 0.5; // 每次都创建新的 CATransaction
-}
-
-// ✅ 正确：显式包裹在单个 transaction 中
-[CATransaction begin];
-for (UIView *view in views) {
-    view.alpha = 0.5;
-}
-[CATransaction commit];
-```
-
----
-
-## 4. 实战应用（完整代码）
-
-### 4.1 滑动时 NSTimer 不工作
+### 3.1 滑动时 NSTimer 不工作
 
 **场景**：在 TableView 滑动时，NSTimer 停止工作
 
@@ -808,7 +681,7 @@ NSTimer *timer = [NSTimer timerWithTimeInterval:1.0 target:self selector:@select
 [[NSRunLoop currentRunLoop] addTimer:timer forMode:NSRunLoopCommonModes];
 ```
 
-### 4.2 常驻线程（完整实现）
+### 3.2 常驻线程（完整实现）
 
 #### 应用场景
 
@@ -965,7 +838,7 @@ PermanentThread *thread = [[PermanentThread alloc] init];
 [thread stop];
 ```
 
-### 4.3 卡顿监控（信号量方案）
+### 3.3 卡顿监控（信号量方案）
 
 #### 原理
 
@@ -1070,7 +943,7 @@ static void lagMonitorObserverCallback(CFRunLoopObserverRef observer, CFRunLoopA
 @end
 ```
 
-### 4.4 UITableView 卡顿优化
+### 3.4 UITableView 卡顿优化
 
 #### 原理
 
@@ -1149,13 +1022,13 @@ static void runLoopObserverCallback(CFRunLoopObserverRef observer, CFRunLoopActi
 | ⚠️ CommonModes 模式 | 在 CommonModes 下可能导致卡顿 |
 | ⚠️ 任务对应问题 | 快速滑动时任务队列可能不对应 |
 
-### 4.5 线程保活（防止崩溃后退出）
+### 3.5 线程保活（防止崩溃后退出）
 
 **原理**：在 Crash 处理中启动 RunLoop，防止线程退出
 
 **注意**：这只是临时措施，真正的解决方案应该找到崩溃原因
 
-### 4.6 FPS 监控工具
+### 3.6 FPS 监控工具
 
 #### 原理
 
@@ -1327,7 +1200,164 @@ static void runLoopObserverCallback(CFRunLoopObserverRef observer, CFRunLoopActi
 
 ---
 
-## 5. 参考资料
+## 4. 面试题 & 常见问题
+
+### 4.1 面试高频题
+
+| 问题 | 答案要点 | 难度 |
+|------|----------|------|
+| **什么是 RunLoop？** | 事件处理循环，让线程有活时工作、没活时休眠 | ⭐ |
+| **RunLoop 和线程的关系？** | 一对一，主线程自动开启，子线程需手动启动 | ⭐ |
+| **为什么 NSTimer 在滑动时停止？** | 滑动时 Mode 切换为 TrackingMode，Timer 在 DefaultMode 下 | ⭐⭐ |
+| **如何解决 Timer 滑动停止？** | 加入 CommonModes 或用 GCD 定时器 | ⭐⭐ |
+| **如何实现常驻线程？** | 子线程 RunLoop 添加 Port，while + runMode 循环 | ⭐⭐⭐ |
+| **RunLoop 的 Mode 有哪几种？** | Default、Tracking、Common、Initialization、GSEventReceive | ⭐⭐ |
+| **Source0 和 Source1 的区别？** | Source0 手动唤醒，Source1 基于 port 自动唤醒 | ⭐⭐ |
+| **RunLoop 的运行流程？** | Entry → BeforeTimers → BeforeSources → 处理事件 → BeforeWaiting → 休眠 → 唤醒 → AfterWaiting → 处理消息 → 循环 | ⭐⭐⭐ |
+| **Observer 可以监听哪些状态？** | Entry、BeforeTimers、BeforeSources、BeforeWaiting、AfterWaiting、Exit | ⭐⭐ |
+| **卡顿监控的原理？** | 监听 RunLoop 状态变化，检测状态停留时间是否超阈值 | ⭐⭐⭐ |
+| **一次性 Timer 和重复 Timer 的区别？** | 一次性触发后自动移除，重复需要手动 invalidate | ⭐ |
+| **performSelector:afterDelay: 在子线程不生效？** | 依赖 RunLoop 的 Timer，子线程默认没有 RunLoop | ⭐⭐ |
+| **RunLoop 与 UI 渲染的关系？** | BeforeWaiting 时提交 CATransaction，触发渲染；必须在 16.67ms 内完成才能保持 60FPS | ⭐⭐⭐ |
+| **CADisplayLink 与 NSTimer 的区别？** | CADisplayLink 与屏幕刷新率同步，更适合 UI 动画；NSTimer 是固定时间间隔 | ⭐⭐ |
+| **什么是离屏渲染？** | 渲染到缓冲区而非直接显示，会触发额外性能开销；圆角、阴影、毛玻璃会触发 | ⭐⭐⭐ |
+| **如何优化滑动流畅度？** | 异步绘制、减少图层数量、避免离屏渲染、按需渲染、使用 RunLoop 休眠时机处理任务 | ⭐⭐⭐ |
+| **为什么是 16.67ms？** | 60Hz 屏幕刷新率，每帧 1000ms/60≈16.67ms；超过则掉帧 | ⭐⭐ |
+| **卡顿产生的原理？** | 主线程被阻塞导致 RunLoop 处理时间超过 16.67ms，无法在屏幕刷新前完成渲染 | ⭐⭐⭐ |
+
+### 4.2 常见陷阱
+
+#### performSelector 原理
+
+```objective-c
+// performSelector:withObject:afterDelay: 底层依赖 RunLoop 的 Timer
+[self performSelector:@selector(task) withObject:nil afterDelay:1.0];
+
+// 滑动时不执行的原因：Timer 默认在 DefaultMode 下
+// 解决：包装一层 NSPort 或者改用 dispatch_after
+```
+
+#### UI 渲染相关陷阱
+
+**1. 频繁调用 setNeedsDisplay 导致卡顿**
+
+```objective-c
+// ❌ 错误：在滑动时频繁刷新
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [self.view setNeedsDisplay]; // 每次滑动都触发重绘
+}
+
+// ✅ 正确：使用 CADisplayLink 节流
+- (void)startMonitoring {
+    self.displayLink = [CADisplayLink displayLinkWithTarget:self
+                                                     selector:@selector(updateUI)];
+    [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop]
+                            forMode:NSRunLoopCommonModes];
+}
+
+- (void)updateUI {
+    // 限制刷新频率
+    if (self.needsUpdate) {
+        self.needsUpdate = NO;
+        [self.view setNeedsDisplay];
+    }
+}
+```
+
+**2. 主线程阻塞导致掉帧**
+
+```objective-c
+// ❌ 错误：在主线程进行耗时操作
+- (void)tableView:(UITableView *)tableView
+    willDisplayCell:(UITableViewCell *)cell
+forRowAtIndexPath:(NSIndexPath *)indexPath {
+    // 图片解码很耗时
+    UIImage *image = [UIImage imageWithData:data];
+    cell.imageView.image = image;
+}
+
+// ✅ 正确：异步解码
+- (void)tableView:(UITableView *)tableView
+    willDisplayCell:(UITableViewCell *)cell
+forRowAtIndexPath:(NSIndexPath *)indexPath {
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        UIImage *image = [self decodeImage:data];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            cell.imageView.image = image;
+        });
+    });
+}
+```
+
+**3. 离屏渲染导致卡顿**
+
+```objective-c
+// ❌ 错误：会触发离屏渲染
+view.layer.cornerRadius = 10;
+view.layer.masksToBounds = YES;
+
+// ✅ 优化：使用 shadowPath 避免离屏渲染
+view.layer.shadowOpacity = 0.5;
+view.layer.shadowColor = [UIColor blackColor].CGColor;
+view.layer.shadowOffset = CGSizeMake(0, -2);
+view.layer.shadowRadius = 3;
+// 关键：设置 shadowPath 避免离屏渲染
+view.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:view.bounds
+                                                  cornerRadius:10].CGPath;
+```
+
+**4. 未在正确时机提交 CATransaction**
+
+```objective-c
+// ⚠️ 注意：隐式动画会在 RunLoop BeforeWaiting 时自动提交
+// 但如果在循环中修改，可能导致多次提交
+
+// ❌ 错误：循环中多次触发隐式动画
+for (UIView *view in views) {
+    view.alpha = 0.5; // 每次都创建新的 CATransaction
+}
+
+// ✅ 正确：显式包裹在单个 transaction 中
+[CATransaction begin];
+for (UIView *view in views) {
+    view.alpha = 0.5;
+}
+[CATransaction commit];
+```
+
+---
+
+## 5. 知识图谱总结
+
+```
+RunLoop（CFRunLoop / NSRunLoop）
+├── 与线程
+│   ├── 一对一绑定；主线程系统自动跑；子线程须 run / runMode:beforeDate:
+│   └── 目的：有事件干活，无事件休眠（省 CPU）
+├── Mode
+│   ├── 常见：kCFRunLoopDefaultMode、UITrackingRunLoopMode、commonModes（并集）
+│   └── 同一时刻只跑一种 Mode → Timer/源 要挂在「当前会跑」的 Mode 上
+├── 输入与观察
+│   ├── Source0：用户态触发，须 wakeUp，处理 UI、performSelector 等
+│   ├── Source1：port / 内核事件，可唤醒 RunLoop
+│   ├── Timers：依赖 Mode；默认 Default → 滑动进 Tracking 易「停表」
+│   └── Observer：Entry / BeforeTimers / BeforeSources / BeforeWaiting / AfterWaiting / Exit
+├── 一圈主流程（心智模型）
+│   ├── 处理 Timer、Source0 → BeforeWaiting → 休眠 → 被唤醒 → AfterWaiting → …
+│   └── UI：CATransaction 常在周期末尾提交；与 16.67ms 帧预算相关
+├── 与周边系统
+│   ├── AutoreleasePool：主线程 Pool 与 RunLoop 周期配合 drain（见 §2.7）
+│   ├── CADisplayLink：挂 CommonModes，随刷新回调
+│   └── GCD：主队列「进主线程 RunLoop」；普通并发队列不依赖 RunLoop
+└── 实战速记
+    ├── NSTimer 滑动不走 → 换 CommonModes 或 dispatch_source_t
+    ├── 常驻线程 → 子线程 + 输入源（如 NSPort）+ while + runMode
+    └── 卡顿监控 → Observer 状态 + 子线程超时判定 / 堆栈采样
+```
+
+---
+
+## 6. 参考资料
 
 ### 官方文档
 - [CFRunLoop Reference](https://developer.apple.com/library/archive/documentation/CoreFoundation/Reference/CFRunLoopRef/)

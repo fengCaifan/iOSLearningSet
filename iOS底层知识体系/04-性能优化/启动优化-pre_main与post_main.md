@@ -1,6 +1,7 @@
 # 启动优化-pre_main 与 post_main
 
-> 一句话总结：**启动分为 pre-main（dyld、静态初始化等）与 post-main（业务冷启动）；优化依赖可量化拆解、减负与合理的静态构造治理。**
+> 一句话总结：**启动分为 pre-main（dyld、静态初始化等）与 post-main（业务冷启动）；优化依赖可量化拆解、减负与合理的静态构造治理。**  
+> **BootTask / 同步异步启动链等问答** 见 [面试模拟-05-启动优化.md](../../09-面试复盘/面试模拟/面试模拟-05-启动优化.md)。
 
 ---
 
@@ -491,6 +492,20 @@ int main(int argc, char * argv[]) {
     return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
 }
 ```
+
+### 4.4 业务实践：启动任务分发器（BootTask）
+
+大型 App 常见痛点是 `didFinishLaunching` **堆满初始化**。工程上可拆成 **多枚 BootTask + 统一分发**，并严格划分 **同步 / 异步**（与专题整理一致）：
+
+| 思路 | 说明 |
+|------|------|
+| **BootTask 协议** | 日志、广告、网络监控、业务配置、启动接口等各占一枚任务类，职责单一、可单测。 |
+| **分发器** | 如「Bootor」在启动与前后台切换时 **统一广播** 生命周期，避免在 AppDelegate 里散落 `if`。 |
+| **syncLaunch** | 主线程 **必须** 完成且阻塞首屏的：如 IM 连接注册、推送 token请求、首屏强依赖配置等（按业务裁剪）。 |
+| **asyncLaunch** | 用户中心、词库、性能监控、设备上报等 **后台队列** 执行，避免拉长首屏。 |
+| **路由与 Window** | 登录态决定 RootVC；Tab **懒加载**、非首 Tab延迟初始化。 |
+
+**监控**：除 `DYLD_PRINT_STATISTICS` 外，可对 **`didFinishLaunching` → 首屏 `viewDidAppear`** 打点；需要时用 **进程启动时间**（如 `sysctl` + `kinfo_proc`）辅助分析 pre-main 体感。
 
 ---
 

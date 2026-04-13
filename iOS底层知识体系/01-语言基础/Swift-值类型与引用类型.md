@@ -6,7 +6,7 @@
 
 ## 📚 学习地图
 
-- **预计学习时间**：40 分钟
+- **预计学习时间**：55 分钟
 - **前置知识**：基本 Swift 语法
 - **学习目标**：值/引用存储差异 → COW → 选型
 
@@ -194,11 +194,11 @@ struct Point {
     var y: Int
 }
 
-// 4. 线程安全场景
-struct ThreadSafeCounter {
+// 4. 并发下「独立副本」场景（注意：多线程同时 mutating 同一实例仍需锁/Actor）
+struct PerThreadCounter {
     private var value = 0
     mutating func increment() {
-        value += 1  // 线程安全
+        value += 1  // 每个线程持有一份 struct 时互不干扰；共享同一 var 仍需同步
     }
 }
 ```
@@ -248,6 +248,33 @@ struct Profile {
 }
 ```
 
+---
+
+### 6.2 与 Objective-C 的底层对照（Apple 平台）
+
+**为什么混编时「感觉 OC 全是引用、Swift 多了值」？**  
+Objective-C 对象语义本质是「堆上的引用 + 指针传递」：变量里通常是 `id` / 类指针，赋值是**指针拷贝**，修改属性影响所有指向同一实例的引用。C 结构体（如 `CGRect`）按值拷贝，但业务层大量仍是 `NSValue` / `NSNumber` 装箱后才进容器。
+
+| 维度 | Objective-C | Swift |
+|------|----------------|-------|
+| 常见建模 | `NSObject` 子类、`NSMutableArray` 等 | `struct` / `enum` 优先，`class` 需要身份或继承时 |
+| 赋值 | 指针拷贝（同一对象） | 值类型按**值语义**拷贝；`class` 与 OC 一致 |
+| 容器 | `NSArray` / `NSMutableArray` 存的是**对象引用** | `Array` 对元素若为 `class` 仍是引用；`Array` 自身有 **COW** |
+| 小聚合 | 常包装成对象或用 `NSValue` | 优先 `struct`，栈/内联更友好，ABI 上常避免额外堆分配 |
+
+**与 Runtime 的衔接**：Swift 的 `class` 若继承 `NSObject`（或未标注 `@objc` 的纯 Swift class 在 ObjC 侧不可见），在 Apple 平台上与 OC 共享**引用计数、isa、方法列表**等一套对象模型；纯 Swift `class` 仍由同一套 ARC/alloc 基础设施管理，但**不经过 `objc_msgSend`** 的那条路径由 Swift 自己的派发机制完成（见 `Swift-协议与泛型.md` 中派发与 Witness Table）。
+
+**值类型里包引用**：`struct` 拷贝的是「整个值」，其中指针字段被拷贝，**指向的堆对象仍是同一个**——这与 OC 里「结构体里塞一个 `id`」效果一致，也是混编里最容易被忽略的别名问题。
+
+**写时复制（COW）与 OC**：`NSString` / `NSArray` 等不可变类常配合内部共享存储实现类似 COW 的共享；Swift 标准库 `String` / `Array` 的 COW 是语言级惯用法，配合 `isKnownUniquelyReferenced` 可手写与系统库一致的优化路径（见 `Swift-内存管理与ARC.md`）。
+
+---
+
+### 6.3 再往下：ABI 与「大值」策略（概念层）
+
+- **Existential（`any Protocol`）**：栈上 **Existential Container**（value buffer + VWT + PWT），大值会**缓冲装不下则上堆**——这是「协议作为类型」有额外开销的原因之一；与「具体泛型 `some` / 泛型参数」的静态路径不同。
+- **Resilience**：库演进时 `struct` 可追加存储属性由编译器插入**重载偏移**，客户端不必重编即可兼容；理解这一点有助于解释「为什么 Swift 值类型 ABI 比手写 C struct 更复杂」。
+- **栈并非绝对**：编译器基于逃逸分析、大小、调用约定决定**栈/寄存器/临时缓冲**；「≤16 字节」仅是经验性描述，以 SIL/优化Pass 结果为准。
 
 ---
 
@@ -258,7 +285,8 @@ struct Profile {
 | **weak 和 unowned 的区别？** | weak 可选自动置 nil，unowned 不可选不置 nil | ⭐⭐⭐⭐ |
 | **什么时候用 unowned？** | 对象生命周期一定比当前对象长 | ⭐⭐⭐ |
 | **什么是 Copy-on-Write？** | 多个变量共享数据，修改时才拷贝 | ⭐⭐⭐ |
-| **Struct 和 Class 如何选择？** | 默认 Struct，需要引用语义或继承时 Class | ⭐⭐⭐ |
+| **Struct 和 Class 如何选择？** | 默认 Struct；需要身份（`===`）、继承、`deinit`、与 OC 子类化互操作时 Class | ⭐⭐⭐ |
+| **值类型里放 class 会怎样？** | struct 拷贝复制指针，多份 struct 共享同一堆对象 | ⭐⭐⭐⭐ |
 
 ---
 
@@ -276,8 +304,8 @@ struct Profile {
 
 ---
 
-**最后更新**：2026-04-07
-**状态**：✅ 已完成
+**最后更新**：2026-04-13
+**状态**：✅ 已扩充（ABI/Existential 概念 + OC 对照；修正 struct 并发表述）
 
 **Sources:**
 - [Mastering Swift's Memory Management: ARC, Weak, Unowned](https://medium.com/@commitstudiogs/mastering-swifts-memory-management-arc-weak-unowned-and-strong-references-74f40f069994)

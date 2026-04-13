@@ -160,16 +160,29 @@ let john = Person(name: "John", age: 30)
 greet(john)
 ```
 
-**使用 oneof 组合**（Swift 5.7+）：
+**存在类型与组合（Swift 5.7+ 常用写法）**：同时满足多个协议时，用 `&` 组合；`any` 表示「任意满足该组合的具体类型」。
 
 ```swift
-// 遵循任意一个协议
-func process(_ value: any (Drawable & Named)) {
-    // value 遵循 Drawable 或 Named
+func process(_ value: any Drawable & Named) {
+    // value 同时遵循 Drawable 与 Named（而非「二选一」）
 }
 ```
 
-### 1.5 some vs any（Opaque Type vs Existential Type）
+### 1.5 底层视角：Witness Table 与 OC 动态派发
+
+**Swift 协议调用**在运行时往往通过 **Protocol Witness Table（PWT）** 与 **Value Witness Table（VWT）** 解析：前者对应「这份具体实现里协议要求的方法/属性落在哪」，后者对应「值类型的拷贝/销毁/缓冲搬运」等操作。把 `Drawable` 当作 `any Drawable` 使用时，常走 **existential** 路径：**动态派发 + 额外元数据**，与泛型参数上「单态化（monomorphization）」的静态路径成本不同。
+
+**与 Objective-C 对比**（概念对齐，非一一实现等价）：
+
+| 机制 | Objective-C | Swift |
+|------|-------------|--------|
+| 动态消息 | `objc_msgSend`、在 `isa` 链上查 SEL | `@objc` / `dynamic` 继承 NSObject 体系可走消息派发 |
+| 协议 | `objc_protocol_t`，运行时注册 | 静态模块 + Witness Table；部分 `@objc protocol` 仍参与 ObjC 运行时 |
+| 泛型 | 无等价一等公民；常靠 `id` + 约定 | 编译期单态化 + 类型元数据；类型参数不同即不同机器码路径 |
+
+**实践含义**：性能敏感热路径上，过多 `any SomeProtocol` 可能不如「泛型 + 具体类型」或 `some` 不透明类型；与 OC 里「少用 `id`、多用具体类型」同一直觉。
+
+### 1.6 some vs any（Opaque Type vs Existential Type）
 
 **some（不透明类型）**：
 
@@ -329,7 +342,7 @@ struct IntContainer: Container {
     typealias Item = Int
     private var items = [Int]()
 
-    func append(_ item: Int) {
+    mutating func append(_ item: Int) {
         items.append(item)
     }
 
@@ -402,7 +415,7 @@ let result = min(1, 2)  // 调用 Int 版本
 ```swift
 extension Int {
     var isEven: Bool {
-        return % 2 == 0
+        return self % 2 == 0
     }
 
     var isOdd: Bool {
@@ -782,7 +795,7 @@ struct Bird: Flyable {}
 **协议组合**：
 
 ```swift
-func travel(_ traveler: some (Flyable & Runnable)) {
+func travel(_ traveler: some Flyable & Runnable) {
     traveler.fly()
     traveler.run()
 }
@@ -878,3 +891,8 @@ let containers: [AnyContainer<Int>] = []
 
 
 （值类型 / 写时复制 / 闭包捕获等更偏内存的内容，见 `Swift-值类型与引用类型.md` 与 `Swift-内存管理与ARC.md`。）
+
+---
+
+**最后更新**：2026-04-13  
+**状态**：✅ 已校正示例（`Int` 扩展、`IntContainer.append`、`some` 组合语法）并增补 **Witness Table / 派发** 与 OC 对照

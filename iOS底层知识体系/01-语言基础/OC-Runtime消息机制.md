@@ -816,6 +816,165 @@ Category2 +load
 - 避免声明额外的 static 变量
 - 使用 getter 的 SEL 作为 key 是常见做法
 
+#### Q5: objc_msgSend 底层实现与缓存机制（进阶追问）
+
+**问题 5-1：缓存为什么要用 bucket_t 数组而不是 NSDictionary？**
+
+```c
+// objc-cache 中的缓存结构（简化版）
+struct bucket_t {
+    SEL _sel;      // 方法选择器
+    IMP _imp;      // 方法实现
+};
+
+struct cache_t {
+    bucket_t *_buckets;  // bucket 数组（不是字典！）
+    mask_t _mask;        // 掩码 = 数组长度 - 1
+    mask_t _occupied;    // 已使用数量
+};
+```
+
+**答案：**
+
+**是的，底层确实是数组！** 这是苹果的特殊设计。
+
+**查找过程：**
+```
+1. 哈希定位：index = SEL & mask  （位运算，极快）
+2. 检查 buckets[index] 的 SEL 是否匹配
+3. 不匹配则线性探测：index = (index + 1) & mask
+4. 找到空 bucket 或遍历完则查找失败
+```
+
+**为什么不用 NSDictionary？**
+- NSDictionary 有复杂的内存管理和扩容逻辑
+- bucket_t 数组结构简单，内存连续，缓存命中率高
+- 直接内存访问，无额外开销
+- 缓存局部性原理：相邻的 bucket 很可能在同一缓存行
+
+---
+
+**问题 5-2：objc_msgSend 的汇编实现中，如果方法缓存命中，是如何直接跳转到方法实现的？**
+
+**答案：**
+
+你的理解基本正确："找到后直接调用 IMP"。但有个关键细节：
+
+**ARM64 汇编伪代码：**
+```assembly
+; objc_msgSend 核心逻辑（简化版）
+objc_msgSend:
+    ; 1. 检查是否为空对象
+    cbz     x0, LNilReceiver
+
+    ; 2. 从 isa 获取类并加载缓存
+    ldr     x13, [x0]           ; x13 = isa
+    and     x10, x13, #ISA_MASK ; x10 = class
+
+    ; 3. 缓存查找（核心逻辑）
+    LLookupStart:
+        and     x12, x1, x10        ; x12 = SEL & mask（哈希定位）
+        ldp     x16, x17, [x12]     ; x16=SEL, x17=IMP（加载 bucket）
+        cmp     x16, x1             ; 比较 SEL
+        b.eq    LCacheHit           ; 命中！
+
+        ; 未命中，线性探测
+        add     x12, x12, #SIZE
+        and     x12, x12, x10
+        b       LLookupStart        ; 循环查找
+
+    ; 4. 缓存命中，直接跳转
+    LCacheHit:
+        br      x17                 ; 直接跳转到 IMP（尾调用）
+```
+
+**关键优化技巧：**
+- **循环展开**：实际代码中不会真的循环，而是展开 4-6 次比较（缓存命中率通常很高）
+- **尾调用优化**：`br x17` 直接跳转，不保留调用栈帧
+- **寄存器传参**：ARM64 前8个参数用 x0-x7，IMP 可以直接使用
+- **特殊跳转指令**：`br` 指令可以直接跳转到寄存器中的地址
+
+**所以你的理解对了：找到 IMP 后直接调用！**
+
+---
+
+**问题 5-3：methodSignatureForSelector 返回空签名会怎样？**
+
+**答案：**
+
+**完全正确！返回 nil 或空签名会导致崩溃。**
+
+```objective-c
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    // 返回 nil 或空签名会导致崩溃
+    return nil;  // ❌ 会崩溃
+    return nil;  // ❌ 会调用 doesNotRecognizeSelector:
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    // 返回空方法的类型编码可以避免崩溃
+    return [NSMethodSignature signatureWithObjCTypes:"v@:"];  // ✅
+}
+```
+
+**崩溃原因（系统源码逻辑）：**
+```c
+// 系统源码伪代码
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    NSMethodSignature *signature = [self class_getMethodSignature:sel];
+
+    if (signature == nil) {
+        // 没有方法签名，无法创建 NSInvocation
+        [self doesNotRecognizeSelector:sel];  // ❌ 崩溃
+        return nil;
+    }
+
+    return signature;
+}
+```
+
+**防崩方案：**
+```objective-c
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    // 查找方法签名
+    NSMethodSignature *signature = [super methodSignatureForSelector:sel];
+
+    if (!signature) {
+        // 返回一个空签名，避免崩溃
+        signature = [NSMethodSignature signatureWithObjCTypes:"v@:"];
+
+        // 上报日志
+        NSLog(@"⚠️ 未识别的方法：%@", NSStringFromSelector(sel));
+
+        // 可以上报到监控系统
+        // [[CrashMonitor shared] logUnrecognizedSelector:sel];
+    }
+
+    return signature;
+}
+
+- (void)forwardInvocation:(NSInvocation *)invocation {
+    // 空实现，避免崩溃
+    NSLog(@"⚠️ 方法转发被拦截：%@", NSStringFromSelector([invocation selector]));
+}
+```
+
+**类型编码说明：**
+```objective-c
+"v@:"  // void return, id self, SEL _cmd
+"v@:@" // void return, id self, SEL _cmd, id arg1
+"i@:d" // int return, id self, SEL _cmd, double arg1
+```
+
+---
+
+**总结：这些追问考察的是：**
+1. **缓存实现的底层细节**：bucket_t 数组、哈希冲突处理
+2. **汇编优化的理解**：尾调用、寄存器传参、循环展开
+3. **消息转发的边界情况**：空签名处理、防崩方案
+
+这些都是高级 iOS 工程师需要掌握的 Runtime 深度知识。
+
 ---
 
 ## 4. 实战应用

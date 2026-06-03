@@ -139,3 +139,98 @@ Mach-O 文件中有一个 __LINKEDIT 段
 │  └── Requirements               │
 └─────────────────────────────────┘
 ```
+
+---
+
+## 附录B：iOS手机调试时证书底层原理（面试高频）
+
+### B.1 调试时的证书验证流程
+
+当你在Xcode中直接运行APP到真机时，系统会进行如下的证书验证流程：
+
+```
+1. Xcode使用本地Mac的私钥对APP源码文件进行签名（编号001）
+2. Apple使用Apple私钥对Mac公钥进行签名生成证书（编号002）
+3. Apple使用Apple私钥对（证书+devices+app id+entitlements）进行签名生成mobileprovision（编号003）
+4. iPhone使用内置的Apple公钥验证mobileprovision的签名（003）
+5. 验证通过后，提取证书，再次使用Apple公钥验证证书签名（002）
+6. 验证通过后，提取Mac公钥，使用Mac公钥验证APP签名（001）
+7. 三层验证都通过，APP才能安装运行
+```
+
+### B.2 为什么需要三层签名？
+
+**问题1：为什么不直接使用"Mac私钥签名，Mac公钥验证"？**
+
+答：无法证明Mac公钥是合法的，脱离了Apple的控制体系。
+
+**问题2：为什么需要用Apple私钥进行第二次签名（证书）？**
+
+答：为了建立信任链，证明Mac公钥是经过Apple认证的合法开发者公钥。
+
+**问题3：为什么还需要第三次签名（mobileprovision）？**
+
+答：为了添加运行时约束：
+- **devices**：控制只能在特定调试设备上运行
+- **app id**：控制只能用于指定Bundle ID的APP
+- **entitlements**：控制APP的权限（推送、IAP、Keychain等）
+
+**问题4：为什么不直接用Apple私钥对APP进行签名？**
+
+答：Apple私钥存储在Apple服务器，每次都上传APP到Apple签名效率太低，影响开发体验。
+
+### B.3 实际开发中的对应关系
+
+**钥匙串操作 → CSR文件：**
+
+```bash
+# 在钥匙串访问中：证书助理 → 从证书颁发机构请求证书
+# 生成：CertificateSigningRequest.certSigningRequest（这就是Mac公钥）
+```
+
+**Apple Developer操作 → .cer文件：**
+
+```bash
+# Apple Developer → 添加Certificate → 提交CSR文件
+# 生成：ios_development.cer 或 ios_distribution.cer
+# 本质：Apple私钥对Mac公钥的数字签名
+```
+
+**Apple Developer操作 → .mobileprovision文件：**
+
+```bash
+# Apple Developer → 添加Provisioning Profile
+# 选择：App ID、Devices、Certificates
+# 生成：xxx.mobileprovision
+# 本质：Apple私钥对（证书+devices+app id+entitlements）的数字签名
+```
+
+### B.4 App Store分发的区别
+
+从App Store下载的APP不需要.mobileprovision文件，因为：
+
+```
+1. App Store已经保证了分发渠道的可信性
+2. Apple在上架过程中会对APP进行重签名
+3. 安装时只需验证Apple的签名即可
+```
+
+### B.5 调试时的常见问题
+
+**问题1：真机调试失败，提示"找不到开发证书"**
+
+- 检查钥匙串是否有开发证书
+- 检查Xcode的Signing & Capabilities设置
+- 重新下载Provisioning Profile
+
+**问题2：提示"设备不被支持"**
+
+- 检查Provisioning Profile是否包含当前设备的UDID
+- 在Apple Developer中添加设备UDID
+- 重新生成Provisioning Profile
+
+**问题3：提示"Entitlements不匹配"**
+
+- 检查工程的entitlements文件与Provisioning Profile是否匹配
+- 确保开启的Capabilities在Profile中都有授权
+- 检查Bundle ID是否一致

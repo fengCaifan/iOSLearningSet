@@ -45,7 +45,7 @@ Apple 标准：
 - 80% 用户容忍：4 秒内启动
 ```
 
-### 1.2 pre-main 优化
+### 1.2 pre-main 优化与二进制重排
 
 **dyld 加载过程**：
 
@@ -60,7 +60,26 @@ Apple 标准：
 8. 初始化入口函数
 ```
 
-**优化策略**：
+**Page Fault对启动的影响：**
+
+```
+iOS使用虚拟内存管理，以Page为单位进行内存映射：
+- Page大小：16KB
+- 映射方式：懒加载（Lazy Loading）
+- 触发机制：访问未映射的Page时触发Page Fault
+
+Page Fault开销：
+- 每次Page Fault约1微秒~0.8毫秒
+- 启动时可能触发数百次Page Fault
+- 累计开销可达数百毫秒
+
+二进制重排原理：
+传统布局：启动函数分散在不同Page → 多次Page Fault
+优化布局：启动函数集中在相邻Page → 减少Page Fault
+优化效果：可减少50-80%的Page Fault
+```
+
+**优化策略：**
 
 | 优化项 | 具体措施 | 收益 |
 |--------|---------|------|
@@ -70,91 +89,118 @@ Apple 标准：
 | **移除无用类/方法** | 使用 Dead Code Stripping | 减少 Page Fault |
 | **二进制重排** | 将启动时调用的方法排列到相邻页 | 减少 50-80% Page Fault |
 
-**二进制重排（Order File）**：
+**二进制重排详细实现：**
 
-**原理**：
-
-```
-虚拟内存以 Page（16KB）为单位加载
-启动时用到的函数如果分散在不同 Page，会导致大量 Page Fault
-将启动时用到的函数排列到相邻 Page，减少 Page Fault 数量
-```
-
-**实现步骤**：
-
+**步骤1：编译期插桩配置**
 ```c
-// 1. 编译期插桩
 // Other C Flags: -fsanitize-coverage=trace-pc-guard
 // Other Swift Flags: -sanitize-coverage=func -sanitize=undefined
+```
 
-// 2. 捕获函数调用顺序
-#include <dlfcn.h>
-#include <libkern/OSAtomic.h>
+**步骤2：实现追踪回调**
+```objective-c
+#import <dlfcn.h>
+#import <libkern/OSAtomic.h>
 
-static OSQueueHead list = OS_ATOMIC_QUEUE_INIT;
-
+// 追踪节点数据结构
 typedef struct {
-    void *pc;
-    void *next;
-} Node;
+    void *pc;        // 程序计数器（函数地址）
+    void *next;      // 下一个节点
+} SanitizerNode;
 
+// 原子队列
+static OSQueueHead traceList = OS_ATOMIC_QUEUE_INIT;
+
+// 追踪节点初始化
 void __sanitizer_cov_trace_pc_guard_init(uint32_t *start, uint32_t *stop) {
-    static uint64_t N;
-    if (start == stop || *start) return;
-    for (uint32_t *x = start; x < stop; x++)
-        *x = ++N;
-}
+    static uint32_t nodeCount = 0;
 
-void __sanitizer_cov_trace_pc_guard(uint32_t *guard) {
-    void *PC = __builtin_return_address(0);
-    Node *node = malloc(sizeof(Node));
-    *node = (Node){PC, NULL};
-    OSAtomicEnqueue(&list, node, offsetof(Node, next));
-}
-
-// 3. 触发并保存 order file
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    NSMutableArray *arr = [NSMutableArray array];
-
-    while (1) {
-        Node *node = OSAtomicDequeue(&list, offsetof(Node, next));
-        if (node == NULL) break;
-
-        Dl_info info;
-        dladdr(node->pc, &info);
-        NSString *sname = [NSString stringWithCString:info.dli_sname encoding:NSUTF8StringEncoding];
-
-        BOOL isObjc = [sname hasPrefix:@"+["] || [sname hasPrefix:@"-["];
-        sname = isObjc ? sname : [@"_" stringByAppendingString:sname];
-
-        if (![arr containsObject:sname]) {
-            [arr insertObject:sname atIndex:0];
-        }
+    if (start == stop || *start) {
+        return;  // 已经初始化过
     }
 
-    [arr removeObject:[NSString stringWithFormat:@"%s", __FUNCTION__]];
-    NSString *funcStr = [arr componentsJoinedByString:@"\n"];
-    NSString *filePath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"link.order"];
-    [[NSFileManager defaultManager] createFileAtPath:filePath
-                                            contents:[funcStr dataUsingEncoding:NSUTF8StringEncoding]
-                                            attributes:nil];
+    // 为每个追踪节点分配唯一ID
+    for (uint32_t *i = start; i < stop; i++, nodeCount++) {
+        *i = nodeCount;
+    }
+}
+
+// 函数调用时的回调
+void __sanitizer_cov_trace_pc_guard(uint32_t *guard) {
+    // 获取当前程序计数器（调用栈地址）
+    void *pc = __builtin_return_address(0);
+
+    // 创建追踪节点
+    SanitizerNode *node = malloc(sizeof(SanitizerNode));
+    node->pc = pc;
+    node->next = NULL;
+
+    // 将节点加入原子队列
+    OSAtomicEnqueue(&traceList, node, offsetof(SanitizerNode, next));
 }
 ```
 
-**配置 Order File**：
+**步骤3：收集调用数据**
+```objective-c
+// 在AppDelegate中收集数据
+- (void)collectFunctionCalls {
+    // 从原子队列中取出所有节点
+    NSMutableArray<NSString *> *functions = [NSMutableArray array];
 
-```
-Build Settings → Linking → Order File
-设置为生成的 order file 路径
+    while (true) {
+        // 从队列中取出节点
+        SanitizerNode *node = OSAtomicDequeue(&traceList, offsetof(SanitizerNode, next));
+
+        if (node == NULL) {
+            break;  // 队列为空，结束
+        }
+
+        // 将地址转换为函数名
+        Dl_info info;
+        if (dladdr(node->pc, &info) == 0) {
+            free(node);
+            continue;
+        }
+
+        // 获取函数名
+        NSString *functionName = [NSString stringWithUTF8String:info.dli_sname];
+
+        // 处理C函数和Block前缀
+        BOOL isObjCMethod = [functionName hasPrefix:@"+["] || [functionName hasPrefix:@"-["];
+        if (!isObjCMethod) {
+            functionName = [@"_" stringByAppendingString:functionName];
+        }
+
+        // 去重
+        if (![functions containsObject:functionName]) {
+            [functions addObject:functionName];
+        }
+
+        free(node);
+    }
+
+    // 倒序（因为入栈是逆序）
+    NSMutableArray *reversedFunctions = [NSMutableArray array];
+    for (NSString *function in [functions reverseObjectEnumerator]) {
+        [reversedFunctions addObject:function];
+    }
+
+    // 保存到文件
+    NSString *functionString = [reversedFunctions componentsJoinedByString:@"\n"];
+    NSString *filePath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"orderfile.txt"];
+    [functionString writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+}
 ```
 
-**验证效果**：
+**步骤4：生成和应用Order File**
+```bash
+# 1. 配置Order File路径
+# Build Settings → Linking → Order File → order.file
 
-```
-Instruments → System Trace
-查看 "File Backed Page In" 事件数量
-优化前：1000+ 次
-优化后：200-300 次
+# 2. 验证效果
+# Instruments → System Trace
+# 查看 "File Backed Page In" 事件数量
+# 优化前：1000+ 次，优化后：200-300 次
 ```
 
 ### 1.3 post-main 优化

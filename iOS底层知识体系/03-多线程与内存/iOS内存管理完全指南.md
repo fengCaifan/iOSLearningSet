@@ -1,7 +1,7 @@
 # iOS 内存管理完全指南
 
 > **适用**：系统复习与面试冲刺  
-> **最后更新**：2026-04-07  
+> **最后更新**：2026-09-10  
 > **说明**：下文关于 `isa` 位域、`extra_rc`、SideTable 等是对 **Apple objc4 源码** 的教学抽象；具体位宽与策略可能随系统演进，请以当前版本源码为准。Swift 侧语言层细节可对照 [Swift-内存管理与ARC.md](../01-语言基础/Swift-内存管理与ARC.md)。
 
 ---
@@ -17,6 +17,7 @@
 7. [循环引用与解决方案](#7-循环引用与解决方案)
 8. [内存泄漏检测（线下）](#8-内存泄漏检测线下)
 9. [内存优化实战](#9-内存优化实战)
+9.5. [FOOM 监控与治理](#95-foom-监控与治理线上内存崩溃)
 10. [面试高频题与速记](#10-面试高频题与速记)
 11. [附录：MLeaksFinder、Zombie 与线上监控](#appendix-leak-tools)
 
@@ -280,11 +281,13 @@ dealloc 路径中 → clearDeallocating
 ### 主线程与 RunLoop（要点）
 
 ```
-RunLoop 一次迭代中常见节奏：
-- Entry：可能 push
-- BeforeWaiting：pop 旧池并建立新池（清理临时 autorelease 对象）
-- Exit：再 pop
+RunLoop 一次迭代中的自动释放池节奏：
+- Entry(kCFRunLoopEntry)：push 建池
+- BeforeWaiting(即将休眠)：pop 旧池 + 紧接着 push 新池 —— 同一个 Observer 回调里连着做
+- Exit(kCFRunLoopExit)：pop
 ```
+
+> ⚠️ **易错时序**：`pop` 和 `push` 都发生在 **BeforeWaiting 这一个时机**（`_objc_autoreleasePoolPop` 后紧跟 `_objc_autoreleasePoolPush`），**不是** "BeforeWaiting pop、AfterWaiting push" 分散两处。理解为：每次即将休眠时，把这一轮产生的临时对象一次性释放，再开一个新池等下一轮。
 
 **子线程**：无 RunLoop 时若产生 autorelease 对象，需自管 `@autoreleasepool`（例如 GCD `dispatch_async` 长时间任务）。
 
@@ -412,6 +415,45 @@ NSSet *cycles = [detector findRetainCycles];
 
 ---
 
+## 9.5 FOOM 监控与治理（线上内存崩溃）
+
+> FOOM 是资深岗高频深挖点：普通崩溃 SDK 抓不到，考察你对系统机制和线上归因的理解。
+
+### 什么是 FOOM / BOOM
+
+- **FOOM**（Foreground Out Of Memory）：App 在**前台**因内存占用过高，被内核 **Jetsam** 机制强杀，表现为"闪退"，但不是常规崩溃。
+- **BOOM**（Background OOM）：在**后台**因内存/超时被回收，属正常系统行为，**不应计入 FOOM**。
+
+### 为什么普通崩溃 SDK 抓不到
+
+Jetsam 直接向进程发 **`SIGKILL`**。`SIGKILL` 与 `SIGSTOP` 是仅有的两个 **不可捕获、不可忽略、不可阻塞** 的信号——注册的 signal handler 根本不会被调用，进程无声退出，没有信号也没有堆栈。因此 Mach 异常 / signal / NSException 那套捕获全部失效。
+
+### 监控：下次启动"排除法"归因（Facebook 提出）
+
+无法在被杀瞬间记录，就在**下次启动时反推上次为何退出**。逐项排除已知原因，剩下的前台异常退出归为 FOOM：
+
+| 排除项 | 判断依据 |
+|--------|----------|
+| 正常退出 / 主动 exit | App 主动调用退出、`exit()` 等 |
+| 版本升级 / 重装 | app version 与上次不一致 |
+| 系统重启 | 系统开机时间（boot time）变化 |
+| 普通 Crash | 崩溃收集器有上次崩溃记录 |
+| 卡死被杀（watchdog，0x8badf00d） | 有主线程卡死记录 |
+| 后台被杀（BOOM） | 上次最后状态是 background |
+| **以上都不是 且 上次在前台** | **→ 判定为 FOOM** |
+
+### 治理（发现 → 定位 → 优化）
+
+1. **内存水位监控**：`task_info(mach_task_self, TASK_VM_INFO, ...)` 周期采样 `phys_footprint`（近似 Jetsam 计量口径），接近阈值时预警并主动释放缓存。
+2. **定位大户**：结合内存快照 / Memory Graph 找出大图、超额缓存、泄漏对象。
+3. **专项优化**：图片降采样、`NSCache` 限额、循环引用治理、`didReceiveMemoryWarning`/退场清缓存、及时释放大对象。
+
+### 面试话术
+
+> "FOOM 是前台超内存被 Jetsam 发 SIGKILL 杀掉，SIGKILL 不可捕获所以崩溃 SDK 抓不到。我们用排除法归因：下次启动排除正常退出、版本升级、系统重启、普通 crash、卡死被杀、后台被杀，剩下的前台异常退出归为 FOOM。发现后用 task_info 采集 phys_footprint 做内存水位告警，结合快照定位大图和泄漏，配合降采样、NSCache 限额、循环引用治理，把 FOOM 率从 0.7% 降到 0.25%。"
+
+---
+
 ## 10. 面试高频题与速记
 
 ### 简表
@@ -536,5 +578,5 @@ flowchart TB
 | [iOS多线程完全指南](./iOS多线程完全指南.md) | 并发；子线程与 autoreleasepool；libdispatch |
 | [锁的分类与性能对比](./锁的分类与性能对比.md) | 与内存无直接耦合，同属本章 |
 
-**最后更新**：2026-04-07  
+**最后更新**：2026-09-10  
 **状态**：✅ 主线成文（原 ARC/AutoreleasePool、Weak、循环引用与检测 三专题已并入本文）

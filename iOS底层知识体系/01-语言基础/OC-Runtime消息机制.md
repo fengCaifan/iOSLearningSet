@@ -1,3 +1,4 @@
+
 # OC Runtime 消息机制
 
 > 一句话总结：**Runtime 是 OC 的运行时系统，通过消息发送机制实现动态调用，让程序在运行时可以创建类、添加方法、修改方法实现，是 OC 动态特性的核心。**
@@ -128,6 +129,23 @@ NSObject (类对象) ←────── 元类 ←────── 根元�
 | **实例方法** | 存储在类对象的方法列表中 |
 | **类方法** | 存储在元类的方法列表中 |
 | **一切皆对象** | 类也是对象，是元类的实例 |
+
+> **为什么需要元类？** 让"方法查找"逻辑统一：调实例方法从 `实例.isa`（类对象）沿 superclass 找，调类方法从 `类.isa`（元类）沿 superclass 找，一套查找代码复用两种场景。
+
+#### nonpointer isa（现代 64 位 isa 的位域优化）
+
+64 位下 isa 不再是纯粹的类指针，而是一个 `union isa_t`，用位域复用把多种信息塞进同一个字：
+
+| 位域 | 含义 |
+|------|------|
+| `nonpointer` | 是否为优化过的 isa（0=纯指针，1=位域模式） |
+| `shiftcls` | 真正的类地址（占大部分位） |
+| `has_assoc` | 是否设置过关联对象 |
+| `weakly_referenced` | 是否被 weak 引用过（dealloc 时决定要不要清弱引用表） |
+| `has_cxx_dtor` | 是否有 C++/ARC 析构逻辑 |
+| `extra_rc` | **引用计数**直接内联存这里，溢出才进 SideTable |
+
+**面试串联点**：引用计数一部分直接存在 isa 的 `extra_rc`，只有溢出时才存全局 SideTable——这条能把 Runtime 和内存管理（retainCount/weak）打通，是高级岗常考的"跨模块理解"。
 
 ### 2.2 方法与成员
 
@@ -273,6 +291,26 @@ void dynamicMethod(id self, SEL _cmd) {
     NSLog(@"动态添加的方法");
 }
 ```
+
+#### 汇编 / C 的边界（快查 vs 慢查）
+
+`objc_msgSend` 本体是汇编（`objc-msg-arm64.s`），但只有 **"缓存命中"这条快路径全程汇编**，未命中后转入 C：
+
+| 阶段 | 语言 | 做什么 |
+|------|------|--------|
+| 缓存命中 | **纯汇编** | `isa → class → cache → 哈希查找 → br 跳转 IMP`，一气呵成 |
+| 缓存未命中后的慢速查找 | **C**（`lookUpImpOrForward`） | 遍历方法列表、沿 superclass 逐级上溯、回填缓存 |
+| 动态解析 / 消息转发 | **C + OC** | 触发可重写的 OC 方法 |
+
+**慢速查找是"逐层上溯"循环**：从当前类开始，每上一层父类都是"**先汇编查该层 cache（可能命中，因为该方法被别的子类调用过已缓存），miss 再 C 遍历该层方法列表**"。找到后的 IMP **回填到发起查找的那个类**（子类），不是回填到父类——这样子类下次调用第一层就命中。
+
+#### 为什么快路径要用汇编写？（高频拉分题）
+
+1. **性能极致**：方法调用是全 App 最高频操作，缓存查找必须最快，汇编可精确控制寄存器、省掉 C 函数调用开销。
+2. **参数透传**：`objc_msgSend` 要支持任意参数个数/类型的方法。C 函数签名固定做不到；汇编不动参数寄存器（x0-x7），把原样参数直接交给最终 IMP。
+3. **尾调用跳转**：找到 IMP 后 `br` 直接跳过去，不保留 `objc_msgSend` 自己的栈帧，调用栈干净。
+
+一句话记忆：**"太频繁要快、参数不定要透传、跳转要干净"**；慢查记忆：**"每层先汇编查 cache，miss 再 C 查方法列表，IMP 回填到发起查找的类"**。
 
 ### 2.4 消息转发机制
 
@@ -658,6 +696,33 @@ method2.imp → imp1
 
 @end
 ```
+
+#### AOP（面向切面编程）与 Aspects 原理
+
+**AOP = Aspect-Oriented Programming**。相对于 OOP 的"纵向"（按业务组织类与继承），AOP 是"横向"：把散落在各处、与主业务无关的**横切关注点**（埋点、日志、性能监控、崩溃防护、登录校验）抽成"切面"统一插入，让业务代码保持干净、不被侵入。
+
+| 术语 | 含义 |
+|------|------|
+| Aspect（切面） | 横切逻辑的封装（如"埋点切面"） |
+| Join Point（连接点） | 可插入的时机（方法调用前/后/替换） |
+| Pointcut（切点） | 筛选"哪些方法要被切" |
+| Advice（通知） | 插在 before / after / instead |
+
+**iOS 没有语言级 AOP，都是靠 Runtime 实现的**：
+
+- **手写 Swizzling**：交换方法 IMP，在新方法里 `[self xx_原方法]` 前后插逻辑——最朴素的 AOP。
+- **Aspects 库**：核心机巧是**主动制造一次消息转发**——把目标方法的 IMP 换成 `_objc_msgForward`（强制走转发），再 hook 住 `forwardInvocation:`，在里面按注册的 before/instead/after 执行 block，最后用 NSInvocation 调原实现。相比手写，它支持**声明式 hook、hook 单个实例、可 remove**。
+
+```objective-c
+// Aspects 声明式用法——不侵入业务
+[UIViewController aspect_hookSelector:@selector(viewDidLoad)
+                         withOptions:AspectPositionAfter
+                          usingBlock:^(id<AspectInfo> info) {
+    [XXTracker trackView:NSStringFromClass([info.instance class])];
+} error:nil];
+```
+
+> **串联实战**：简历里"利用 Runtime 特性对线上崩溃进行防护"本质就是 AOP——把"防崩溃"当横切关注点，用 Swizzling/消息转发集中兜底（越界拦截、unrecognized selector 兜底上报），业务方零感知、统一维护。这体现的是"有架构思想"，而不只是"会用 API"。
 
 ### 2.7 方法缓存
 
@@ -1232,5 +1297,5 @@ OC Runtime（objc / objc_msgSend）
 
 ---
 
-**最后更新**：2026-04-03
+**最后更新**：2026-09-04
 **状态**：✅ 已完成

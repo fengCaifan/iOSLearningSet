@@ -989,6 +989,11 @@ PermanentThread *thread = [[PermanentThread alloc] init];
 
 **真正的卡顿，通常表现为 RunLoop 长时间无法进入 BeforeWaiting，而不是停在 sleep 阶段。**
 
+> ⚠️ **关键澄清（易错）**：activity 是"瞬间广播"，不是"持续状态"。干活发生在两次广播的**空档**里，此时并没有"当前 activity"，监控只能拿到"最近一次广播值"。因此：
+> - `BeforeSources`/`AfterWaiting` = 忙碌区**起点**（开始计时）；
+> - `BeforeWaiting` = 忙碌区**终点**（进入休眠，计时停止）。
+> - **不要把"卡在 BeforeWaiting"当作渲染卡顿信号**——因为停在 BeforeWaiting 既可能是 CA commit 重，也可能只是 App 空闲休眠，二者无法区分。这套 RunLoop 时间差方案**只抓主线程逻辑卡顿**；纯渲染掉帧要用 CADisplayLink FPS 兜底。
+
 ---
 
 **2. 信号量方案监控的是"RunLoop 状态是否切换"**
@@ -1101,6 +1106,50 @@ BeforeSources ──(发送信号)──> 50ms ──(超时！)──> ⚠️ �
 - 工业级卡顿监控不仅能检测"是否卡顿"
 - 还能大致定位卡顿发生在哪个 RunLoop 阶段
 - 根据不同阶段给出针对性的优化建议
+
+---
+
+**4. 微信 Matrix 的真实手法：双 Observer + 忙碌开关（⭐⭐⭐⭐⭐ 源码级）**
+
+Matrix（`WCBlockMonitorMgr.mm`）不是"监听某几个状态"，而是注册**两个优先级相反的 Observer**，把"干活区"夹在头尾计时：
+
+| Observer | 优先级 | 触发时机 | 职责 |
+|----------|--------|----------|------|
+| beginObserver | `LONG_MIN`（最高） | 每个 activity **最先**回调 | `BeforeSources`/`AfterWaiting`/`Entry`/`BeforeTimers` → `g_bRun=YES` **开灯**，记录起点 `g_tvRun` |
+| endObserver | `LONG_MAX`（最低） | 每个 activity **最后**回调 | `BeforeWaiting`/`Exit` → `g_bRun=NO` **关灯**（休眠时间不计入卡顿） |
+
+```
+BeforeSources/AfterWaiting  ── begin: g_bRun=YES, 记起点 g_tvRun ──┐
+        │                                                          │ 忙碌区(检测线程盯这段)
+BeforeWaiting               ── end:   g_bRun=NO  关灯，之后休眠 ────┘
+```
+
+**检测线程的判断（核心一行）**：
+```c
+// 后台线程周期性检查：忙碌标志为真 且 从起点到现在超过阈值 → 判定卡顿
+if (g_bRun && diff(g_tvRun, now) > g_RunLoopTimeOut) {
+    return EDumpType_MainThreadBlock;  // dump 主线程堆栈上报
+}
+```
+
+**为什么这样设计（面试要点）**：
+1. **`BeforeWaiting` 的职责是"关灯"排除休眠**，不是拿来判卡顿——这才是"不把 BeforeWaiting 当卡顿信号"的真正原因（避免 App 空闲被误报）。
+2. 忙碌区 = 从 `BeforeSources`/`AfterWaiting`（开灯）到 `BeforeWaiting`（关灯）之间，`g_bRun==YES` 且超时即卡顿。
+3. 用 `LONG_MIN`/`LONG_MAX` 双 Observer 把干活区精确夹在头尾，比"记录单个 activity 值"更准。
+4. 纯渲染掉帧此方案抓不到（BeforeWaiting 一到就关灯了），需 CADisplayLink FPS 互补。
+
+> **面试话术**：主线程 RunLoop 注册 Observer，在 `BeforeSources`/`AfterWaiting` 标记"开始忙碌"并记起点，在 `BeforeWaiting` 标记"忙碌结束、进入休眠"；后台线程周期检查，若忙碌标志为真且持续超阈值则 dump 主线程堆栈上报。**关键是用 BeforeWaiting 切掉休眠时间，避免空闲误报**；渲染掉帧用 CADisplayLink 另外兜底。
+
+**5. 三个高频追问（易错点）**
+
+**Q：为什么用两个优先级相反的 Observer？单个改 `g_bRun` 不行吗？**
+单个 Observer 只能回答"现在忙不忙"，回答不了"这一段忙了多久"。同一 activity 点会按 order 从小到大依次回调多个 Observer；`LONG_MIN` 的 begin 卡在干活区**最前**、`LONG_MAX` 的 end 卡在**最后**，`end - begin` ≈ 该点内所有工作的真实耗时。**双 Observer 负责精确计量耗时，`g_bRun` 开关负责排除休眠**，两者维度不同、互相配合。
+
+**Q：为什么还要监听 `BeforeTimers`？任务不都在 `BeforeSources` 之后吗？**
+一圈广播顺序是 `AfterWaiting → BeforeTimers → BeforeSources → 干活 → BeforeWaiting`，`BeforeTimers` 比 `BeforeSources` 更早。若这圈从 Timer 开始干活，只认 BeforeSources 会漏记起点、计时偏晚。所以把 `BeforeTimers`/`BeforeSources`/`AfterWaiting` 都当开灯点兜住忙碌区开头。
+
+**Q：那为什么每个 begin 点都带 `if (g_bRun == NO)`？**
+保证"忙碌起点"只被最早的那个 begin 点记一次。多个 begin 点连续触发时，只有灯还灭着（上一圈已休眠/刚醒）才记当前时间为起点，避免后续点把起点覆盖成偏晚的时刻。
 
 #### 完整代码
 
@@ -1966,8 +2015,8 @@ RunLoop（CFRunLoop / NSRunLoop）
 │   ├── UI 任务处理：主要在 BeforeWaiting 之前（AutoLayout、drawRect、图片解码）⭐⭐⭐
 │   ├── CoreAnimation commit：在 BeforeWaiting Observer 回调内部执行
 │   ├── 卡顿本质：RunLoop 无法及时进入 BeforeWaiting（因为 UI 任务耗时）⭐⭐⭐
-│   ├── 卡顿监控：监听 kCFRunLoopAllActivities，通过 semaphore + timeout 检测状态变化⭐⭐⭐
-│   ├── 状态定位：BeforeSources/AfterWaiting = 业务逻辑；BeforeWaiting = 渲染问题⭐⭐⭐⭐
+│   ├── 卡顿监控：双 Observer(LONG_MIN/LONG_MAX) 夹住忙碌区；BeforeSources/AfterWaiting开灯、BeforeWaiting关灯排除休眠⭐⭐⭐⭐⭐
+│   ├── 检测判断：后台线程查 g_bRun==YES 且忙碌时长>阈值 → dump主线程堆栈（Matrix WCBlockMonitorMgr）
 │   ├── Source1 跳转：goto handle_msg，跳过 BeforeWaiting/mach_msg/AfterWaiting
 │   ├── mach_msg 调用：只在真正休眠时（无 Source1、有事件源时）
 │   └── 休眠判断：有 Source1 不休眠，无事件源直接退出
@@ -1978,9 +2027,9 @@ RunLoop（CFRunLoop / NSRunLoop）
 └── 实战速记
     ├── NSTimer 滑动不走 → 换 CommonModes 或 dispatch_source_t
     ├── 常驻线程 → 子线程 + 输入源（如 NSPort）+ while + runMode
-    ├── 卡顿监控 → 监听 kCFRunLoopAllActivities，重点关注 BeforeSources 和 AfterWaiting⭐⭐⭐
-    ├── 监控原理 → 真正的卡顿表现为 RunLoop 长时间无法进入 BeforeWaiting
-    ├── 状态定位 → BeforeSources/AfterWaiting = 业务逻辑；BeforeWaiting = 渲染问题⭐⭐⭐⭐
+    ├── 卡顿监控 → BeforeSources/AfterWaiting开灯记起点、BeforeWaiting关灯排除休眠；后台线程查忙碌超时⭐⭐⭐⭐
+    ├── 监控原理 → activity是瞬间广播非持续状态，干活在广播空档；只抓主线程逻辑卡顿
+    ├── 渲染掉帧 → RunLoop方案抓不到(BeforeWaiting即关灯)，用 CADisplayLink FPS 互补⭐⭐⭐⭐
     └── 性能优化 → 16.67ms 帧预算，BeforeWaiting 之前必须完成所有 UI 任务
 ```
 
@@ -2003,5 +2052,5 @@ RunLoop（CFRunLoop / NSRunLoop）
 
 ---
 
-**最后更新**：2026-05-09（补充工业级卡顿监控的状态定位原理）
+**最后更新**：2026-09-07（补充 Matrix 双 Observer 忙碌开关手法，修正 BeforeWaiting 误导表述）
 **状态**：✅ 已完善并修正

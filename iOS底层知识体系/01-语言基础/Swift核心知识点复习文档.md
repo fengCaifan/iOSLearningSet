@@ -38,7 +38,7 @@
 |------|---------------------|------------------|
 | **存储位置** | 栈（小对象）或堆（大对象） | 堆 |
 | **赋值行为** | 拷贝（值语义） | 引用（引用语义） |
-| **线程安全** | 天然线程安全 | 需要考虑线程安全 |
+| **线程安全** | 不共享可变副本时更易安全；共享同一可变值仍会产生数据竞争 | 需要考虑共享状态、生命周期与同步 |
 | **内存管理** | 栈自动释放 / ARC（堆） | ARC |
 | **性能** | 栈分配快，无需引用计数 | 堆分配慢，需要引用计数 |
 | **身份标识** | 无标识（==判断相等） | 有标识（===判断同一性） |
@@ -90,7 +90,7 @@ print(arr2)              // [1, 2, 3]（不受影响）
 **优先选择Struct的情况**:
 - 数据相对简单，主要用于存储值
 - 不需要继承
-- 天然线程安全很重要
+- 希望使用值语义、以快照传递数据（但共享可变值时仍需同步）
 - 语义上是值而非引用（如坐标、尺寸）
 
 **优先选择Class的情况**:
@@ -111,12 +111,12 @@ A: Swift的Array实现了Copy-on-Write机制。多个Array变量可以共享同�
 ### 核心区别
 
 ```swift
-// 泛型：编译期单态化，静态派发，性能最优
+// 泛型：具体类型可知时，编译器可能特化和内联；不能机械认为每次调用都必然单态化或静态派发
 func process<T>(_ value: T) -> T {
-    return value  // 编译期为每个T生成专门代码
+    return value
 }
 
-// 协议：运行时见证表，动态派发，灵活性高
+// 协议存在类型：通常通过协议见证表间接调用，灵活支持异构集合
 protocol Drawable {
     func draw()
 }
@@ -127,15 +127,15 @@ func render(_ shape: Drawable) {
 ```
 
 **底层实现差异**：
-- **泛型**：编译期单态化 → 为每个类型生成专门代码 → 静态派发 → 可内联优化
-- **协议**：协议见证表 + 存在容器 → 运行时动态查找 → 灵活支持异构集合
+- **泛型**：具体类型可知时，编译器可能特化、内联或去虚拟化；是否特化取决于优化和调用上下文
+- **协议存在类型**（如 `any Drawable`）：通常使用协议见证表 + 存在容器，适合运行时多态与异构集合
 
 ### 性能对比
 
 | 特性 | 泛型 | 协议 |
 |------|------|------|
-| 派发方式 | 静态派发 | 动态派发 |
-| 性能开销 | 最小（可内联） | 中等（间接调用） |
+| 派发方式 | 可在具体类型已知时特化/优化；不能一概而论 | `any Protocol` 通常经见证表间接调用 |
+| 性能开销 | 常可优化，取决于泛型约束和调用上下文 | 通常有存在容器与间接调用开销 |
 | 灵活性 | 中等 | 高（支持异构集合） |
 
 ### 类型擦除
@@ -168,10 +168,10 @@ struct AnyProcessor<Output>: Processor {
 ### 面试速记
 
 **Q: 泛型vs协议本质区别？**
-A: **抽象维度**：泛型是类型抽象，协议是行为抽象。**底层实现**：泛型编译期单态化（静态派发），协议运行时见证表（动态派发）。
+A: **抽象维度**：泛型是类型抽象，协议是行为抽象。泛型可被编译器特化/内联；以 `any Protocol` 保存或调用时通常通过协议见证表。具体行为必须结合调用点与优化级别判断。
 
 **Q: 为什么泛型性能更好？**
-A: 泛型编译期为每个类型生成专门代码，可内联优化；协议需要运行时见证表查找，有间接调用开销。
+A: 泛型在具体类型可知时常可特化和内联；协议存在类型通常需要见证表间接调用。性能差异不是绝对，先以 API 语义和可维护性选型，热点再 Profile。
 
 **Q: 什么时候用泛型，什么时候用协议？**
 A: **泛型**：性能关键、容器类型、算法实现。**协议**：需要多态、定义接口、支持异构集合。
@@ -303,8 +303,34 @@ await counter.increment()  // 自动序列化访问
 |------|-----------|-----|
 | 语法 | async/await | closure |
 | 结构化 | ✅ 结构化 | ❌ 非结构化 |
-| 类型安全 | ✅ 编译期检查 | ❌ 运行时错误 |
-| 数据竞争 | ✅ Actor隔离 | ❌ 手动同步 |
+| 类型安全 | `async`/`throws`、`Sendable`、actor isolation 可获得编译器辅助 | 无同等语言级别隔离，需手动约束 |
+| 数据竞争 | actor 可隔离状态；仍需正确处理 `nonisolated`、共享引用和非 Sendable 数据 | 锁、串行队列、barrier 等手动同步 |
+
+### `async/await` 不是 Swift / iOS 的全部异步方式
+
+`async/await` 是 Swift Concurrency 的主要语法，不是“所有异步都只能使用它”。现实项目常同时存在以下模型：
+
+| 模型 | 典型 API / 用途 | 适合解决什么 |
+|---|---|---|
+| 回调 | `URLSession` completion、delegate | 旧 API、事件回调、与 Objective-C 互操作 |
+| GCD | `DispatchQueue.async`、`asyncAfter`、`DispatchSource` | 轻量调度、队列串行化、系统事件 |
+| Operation | `OperationQueue`、依赖、最大并发数 | 可取消流程、依赖图、任务编排 |
+| Combine / AsyncSequence | Publisher、`AsyncStream` | 多值事件流、状态变化 |
+| Swift Concurrency | `async/await`、`Task`、`TaskGroup`、actor | 顺序异步代码、结构化并发、取消传播、状态隔离 |
+
+它们可以桥接：URLSession 的 completion API 可包装为 `async` 函数；`Task` 内也可调用 GCD/Operation，但应避免无必要反复跨模型切换。
+
+### Swift Concurrency 与 GCD barrier / semaphore 如何取舍
+
+| 需求 | 优先选择 | 原因 / 边界 |
+|---|---|---|
+| 保护 Swift 新模块中的共享可变状态 | `actor` | 用隔离替代手工锁；跨 actor 调用需要 `await` |
+| 自建并发队列的读多写少缓存 | GCD concurrent queue + `.barrier`，或 actor / `NSCache` | barrier 是 GCD 的队列独占语义；不能作用于 global queue |
+| 限制并发数量 | TaskGroup 自行控制、actor/AsyncSemaphore 封装，或 OperationQueue / GCD semaphore | 不在 `Task` 中直接用阻塞式 `DispatchSemaphore.wait()` 长时间占用 cooperative executor；主线程更不能 wait 网络结果 |
+| 复杂依赖、优先级、可观察取消 | `OperationQueue` | 原生依赖、最大并发数、取消状态 |
+| UI 状态更新 | `@MainActor` / `MainActor.run` | 比手写 `DispatchQueue.main.async` 更能表达隔离意图；老代码可继续用 main queue |
+
+> `await` 表示当前 **Task 挂起**，让执行线程可运行别的任务；它不等于阻塞线程，也不等于创建线程。`DispatchSemaphore.wait()` 则可能真正阻塞当前线程，两者不可混为一谈。
 
 ### 面试速记
 
@@ -318,36 +344,106 @@ A: Actor通过数据隔离确保内部状态只能通过串行方法访问，编
 
 ## 🎯 第五部分：方法派发机制与VTable
 
-### Swift三种派发机制
+### 深入：`await`、线程与 GCD 阻塞的底层差异
+
+`async` 函数会被编译器转换为可暂停、可恢复的**状态机**。每一个 `await` 都是潜在的 suspension point：编译器会保存当前局部变量、下一步执行位置和错误处理上下文（可概念化为 continuation），随后让当前 **Task 挂起并归还 executor**。
 
 ```swift
-// 1. 静态派发（最快，~1 CPU周期）
-struct Point {
-    func draw() { }  // 编译期确定，可内联
-}
-
-class Calculator {
-    final func add() { }  // 强制静态派发
-}
-
-// 2. 虚函数表派发（VTable，~3-4 CPU周期）
-class Animal {
-    func makeSound() { }  // VTable派发
-}
-
-class Dog: Animal {
-    override func makeSound() { }  // 通过VTable查找
-}
-
-// 3. 消息派发（最慢，~10+ CPU周期）
-class Person: NSObject {
-    @objc dynamic var age: Int = 0  // 强制消息派发
+func title() async throws -> String {
+    let data = try await fetchData() // suspension point
+    return decode(data)              // fetch 完成后从这里恢复
 }
 ```
 
-**性能排序**：静态派发 > VTable派发 > 协议见证表派发 > 消息派发
+概念时序：
 
-### VTable内存布局
+```text
+Task A 执行到 await fetchData()
+→ 保存 continuation / 状态 1
+→ Task A 挂起，不占住当前 worker 线程
+→ executor 可让 worker 线程运行 Task B
+→ fetchData 完成，runtime 将 Task A continuation 重新入队
+→ Task A 在合适 worker 或指定 actor executor 恢复执行
+```
+
+因此：
+
+| 操作 | 等待对象 | 当前线程发生什么 |
+|---|---|---|
+| `await` | Task 的异步结果 / actor 可用性 | Task 挂起，线程通常可运行别的 Task |
+| `DispatchSemaphore.wait()` | 信号量变为可用 | 当前 pthread 可能阻塞，不能执行别的工作 |
+| `Thread.sleep` / 同步 I/O | 时间 / I/O 返回 | 当前线程被占用 |
+
+> `await` 不是创建线程，也不是“绝不阻塞”。若 async 函数内部调用同步 I/O、`Thread.sleep` 或长时间 `DispatchSemaphore.wait()`，仍会占住 cooperative executor 的线程。`Task` 不是线程；Swift runtime 将大量 Task 调度到有限 worker 线程上。
+
+### 深入：VTable 与 Witness Table 的关系
+
+二者都可概念化为**类型元数据附近的函数入口表**，但解决的是两种不同多态关系：
+
+```text
+VTable：class 继承树中，可 override 成员该调用父实现还是子类实现？
+Witness Table：具体类型 T 遵守协议 P 时，P 的每个 requirement 由 T 的哪个实现满足？
+```
+
+```text
+Dog 实例
+  └─ metadata 指针 → Dog class metadata
+                       ├─ superclass metadata → Animal metadata
+                       └─ VTable / override entries
+
+any Drawable 存在容器
+  ├─ 具体值或值盒子
+  ├─ concrete type metadata → Circle metadata
+  └─ Circle : Drawable witness table
+       draw requirement → Circle.draw（或适配 thunk）
+```
+
+`Animal` 的 `sound` 在概念上占一个固定 slot。`Dog` override 后，Dog 对应 slot 指向 `Dog.sound`；未 override 的 slot 仍指向父类实现。调用 `let a: Animal = Dog(); a.sound()` 时，调用点按已知 slot 取入口即可；继承/覆盖关系已编码进类元数据，因此无需像 Objective-C `objc_msgSend` 那样按 selector 沿 `superclass` 链查找。
+
+Witness Table **不是继承用的 VTable**。Circle、Dog 或其他类型都可各自拥有 `T : P` 的 conformance 表；entry 可能直接指向实现，也可能经 thunk 调整 `self`、泛型参数或转入 class VTable。二进制布局属于 ABI/编译器细节，面试讲语义模型即可，不死背偏移。
+
+### Swift 常见派发机制：不要只背“三种”
+
+Swift 调用如何派发取决于**声明位置、调用时静态类型、是否继承/协议、是否暴露给 Objective-C Runtime，以及编译器优化**。面试讲清以下四类即可；不要背固定 CPU 周期或绝对性能排行。
+
+```swift
+// 1. Direct / 静态派发：目标在编译期可确定，常可内联。
+struct Point {
+    func draw() { print("Point") }
+}
+let point = Point()
+point.draw()
+
+// final 禁止 override，编译器有机会去虚拟化/内联。
+final class FinalCalculator {
+    func add(_ a: Int, _ b: Int) -> Int { a + b }
+}
+
+// 2. VTable 派发：普通可继承 Swift class 的 override 需要选择实际实现。
+class Animal {
+    func makeSound() { print("...") }
+}
+class Dog: Animal {
+    override func makeSound() { print("Bark") }
+}
+let animal: Animal = Dog()
+animal.makeSound() // Dog.makeSound，经 class 的虚函数表语义派发
+
+// 3. 协议见证表派发：通过协议存在类型调用协议要求。
+protocol Drawable { func draw() }
+struct Circle: Drawable { func draw() { print("Circle") } }
+let drawable: any Drawable = Circle()
+drawable.draw() // 通过 Circle 对 Drawable 的 witness table 调用
+
+// 4. Objective-C 消息派发：需要 ObjC Runtime 动态能力时。
+final class Person: NSObject {
+    @objc dynamic var age: Int = 0 // KVO / Swizzling 等需要 objc_msgSend 语义
+}
+```
+
+> `@objc` 表示可被 Objective-C 看见；`dynamic` 才要求 Swift 调用也采用 Objective-C 消息派发语义。`final` 不等于“永远静态派发”，而是消除 override 可能性，让编译器有机会去虚拟化/内联。
+
+### VTable 概念模型
 
 ```swift
 class Dog: Animal {
@@ -356,62 +452,157 @@ class Dog: Animal {
 }
 ```
 
-**Dog对象内存布局**：
-```
-堆内存:
-┌─────────────────┐
-│  isa指针        │ → Dog类型元数据
-│  成员变量        │
-└─────────────────┘
+类的类型元数据维护可覆盖成员的函数入口表；调用点依据静态类型取对应槽位并跳转。它不是 Objective-C `objc_msgSend` 那种沿 superclass/cache 查找的消息机制。
 
-Dog类型元数据:
-┌─────────────────────────────────┐
-│  VTable:                        │
-│  [0] makeSound → Dog_makeSound │ 函数指针
-│  [1] move       → Dog_move      │
-│  [2] fetch      → Dog_fetch     │
-└─────────────────────────────────┘
-```
+#### 深入：VTable、静态派发与 Objective-C 消息派发到底差在哪？
 
-**查找过程**：对象 → isa → VTable → 索引查找 → 函数执行
+先纠正两个常见叫法：Objective-C 的 **method cache 是缓存表，不是“消息缓存队列”**；`objc_msgSend` 是函数调用入口，不是“消息队列”。这里的“消息”指 `receiver + selector` 形式的方法调用。
 
-### @objc的三种情况
+##### 1）静态 / Direct 派发：编译时已知目标地址
 
 ```swift
-// 1. @objc - 双重派发（Swift用VTable，OC用消息派发）
-@objc func normalMethod() { }
+struct Point {
+    func draw() { print("Point.draw") }
+}
 
-// 2. @objc dynamic - 强制消息派发
-@objc dynamic var value: Int = 0  // 支持KVO
-
-// 3. final - 强制静态派发
-final func optimizedMethod() { }  // 可内联
+let p = Point()
+p.draw()
 ```
 
-### 核心原则
+若编译器在调用点已经确定目标就是 `Point.draw`，生成的机器码可以近似理解为：
 
-**派发方式取决于调用类型，不是实现类型**：
+```text
+call Point.draw 的固定函数地址
+```
+
+无需通过对象 `isa`、表或 selector 再查一次；优化器还可能直接把函数体内联到调用点。因此它适合不可 override 的调用，例如许多具体值类型调用、`final` 成员或优化后已去虚拟化的调用。
+
+> “静态派发”是**调用目标在编译期确定**，不是“方法是 static/class 方法”的意思。
+
+##### 2）VTable：为可 override 成员预留固定槽位
+
+```swift
+class Animal {
+    func move() { print("Animal.move") }
+    func sound() { print("Animal.sound") }
+}
+
+class Dog: Animal {
+    override func sound() { print("Dog.sound") }
+    func fetch() { print("Dog.fetch") }
+}
+
+let a: Animal = Dog()
+a.sound() // 必须运行时决定调用 Animal.sound 还是 Dog.sound
+```
+
+可把 `Animal` 的 VTable 想成按**固定索引**排好的函数指针表：
+
+```text
+Animal VTable
+slot 0: move  → Animal.move
+slot 1: sound → Animal.sound
+```
+
+`Dog` 继承后沿用父类槽位；对 override，它把同一个槽位替换为子类实现；新增方法再增加自己的入口：
+
+```text
+Dog VTable（概念图）
+slot 0: move  → Animal.move    // 未 override，沿用父实现
+slot 1: sound → Dog.sound       // override，覆盖父类同一槽位
+slot 2: fetch → Dog.fetch       // 子类新增
+```
+
+调用 `a.sound()` 时，编译器知道 `sound` 对应 slot 1：
+
+```text
+对象 a
+  → 类型元数据 / VTable
+  → 取 slot 1 的函数指针
+  → 直接跳转到 Dog.sound
+```
+
+**没有像 Objective-C 一样逐级沿 `superclass` 查找。** 继承关系在类元数据/VTable 构建时已体现：未重写的槽位指向父类实现，重写的槽位换成子类实现。因此一次“按索引取函数指针”的间接调用即可完成多态。
+
+##### 3）Objective-C 消息派发：运行时按 selector 查找
+
+```objc
+[obj doSomething]
+  → objc_msgSend(obj, @selector(doSomething))
+```
+
+概念过程：
+
+```text
+receiver
+  → isa
+  → 当前类 method cache（哈希查找，快路径）
+  → 当前类 method list
+  → superclass 的 cache / method list，逐级向上
+  → 找到 SEL 对应 IMP 后调用
+```
+
+| 维度 | Swift Direct | Swift VTable | Objective-C `objc_msgSend` |
+|---|---|---|---|
+| 调用目标何时确定 | 编译期 | 运行时按固定 slot | 运行时按 selector 查找 |
+| 主要数据结构 | 无须查表 | 固定索引的函数指针表 | cache + 方法列表 + superclass 链 |
+| 继承 override | 不适用 / 已被禁止 | 子类覆盖同一 slot | 子类方法优先；未命中再查父类 |
+| 动态新增/替换方法 | 不适合 | 不适合常规运行时替换 | Runtime 可 add/replace/swizzle，cache 会更新/失效 |
+| 主要取舍 | 最易优化 | 支持 class 多态且开销稳定 | 动态性最强，查找和 ABI 约束更多 |
+
+##### 4）`super` 调用不是“从 super 指针继续查找”
+
+在 Swift / Objective-C 中，`super.method()` 的核心语义都是：**从当前实现所属类的父类开始，按该语言对应派发规则调用父实现**，不是把 `self` 变成父类对象。`self` 仍是同一个 `Dog` 实例。
+
+```swift
+class Dog: Animal {
+    override func sound() {
+        super.sound()      // 调 Animal.sound；self 仍是 Dog
+        print("Dog.sound")
+    }
+}
+```
+
+Swift 中这个调用通常可直接定位到父类对应入口；Objective-C 的 `objc_msgSendSuper` 则携带“从哪个类的父类开始查找”的上下文，避免再次从真实对象 `isa`（Dog）开始而递归调用 Dog 的 override。
+
+##### 5）协议见证表为什么又不同？
+
+协议见证表不是继承 VTable：它记录“**某个具体类型如何满足某个协议要求**”。
+
+```swift
+protocol Drawable { func draw() }
+struct Circle: Drawable { func draw() { print("Circle") } }
+struct Square: Drawable { func draw() { print("Square") } }
+
+let item: any Drawable = Circle()
+item.draw()
+```
+
+`item` 保存具体值/类型元数据，以及 `Circle : Drawable` 的 witness table；调用时从表中取 `draw` 对应函数入口。不同具体类型各自有满足同一协议的一张见证表，和 class 父子类覆盖 VTable 槽位是两种不同的多态模型。
+
+### 派发方式取决于调用点
+
 ```swift
 let circle = Circle()
-circle.draw()           // ← 静态派发 (struct)
+circle.draw()                 // 具体 struct 调用，通常 direct
 
-let shape: Drawable = circle
-shape.draw()            // ← 协议见证表派发
+let shape: any Drawable = circle
+shape.draw()                  // 协议存在类型，见证表派发
 
-let rect = Rectangle()
-rect.draw()             // ← VTable派发 (class)
+let animal: Animal = Dog()
+animal.makeSound()            // 可覆盖 class 成员，VTable 语义
 ```
 
 ### 面试速记
 
-**Q: Swift为什么比OC快？**
-A: Struct默认静态派发（可内联），Class用VTable派发（比OC消息派发快），只有@objc dynamic才走OC runtime。
+**Q: Swift 为什么常被认为比 OC 调用开销更低？**  
+A: Swift 在具体类型、`final`、泛型特化等场景中，编译器常能直接调用或内联；可继承 class 用 VTable，通常比 Objective-C 的通用消息查找更易优化。但不能仅凭语言下结论，真实性能需 Instruments / 编译优化验证。
 
-**Q: 什么时候需要@objc dynamic？**
-A: 需要OC runtime特性时：KVO/KVC、方法交换、Core Animation代理、与OC互操作。
+**Q: `@objc` 和 `dynamic` 的区别？**  
+A: `@objc` 让声明暴露给 Objective-C Runtime；`dynamic` 进一步要求 Swift 调用也走 Objective-C 消息派发，常用于 KVO、Swizzling 等动态能力。
 
-**Q: 协议见证表什么时候用？**
-A: 只有用协议类型调用时才用协议见证表派发。具体类型调用：struct静态派发，class用VTable。
+**Q: 协议见证表何时使用？**  
+A: 以 `any Protocol` 形式调用协议要求时通常使用见证表；具体类型或泛型调用可能被直接调用、特化或去虚拟化，需结合调用点判断。
 
 ---
 
@@ -1225,104 +1416,70 @@ A: @State用于值类型局部状态管理，$投射为Binding；@Published用�
 
 ## 🎯 第十部分：Lazy属性的底层实现
 
-### Lazy属性的原理
+### Lazy 属性的原理与线程安全边界
 
 #### 基础用法
 
 ```swift
 class DataProcessor {
-    // 延迟属性：首次访问时才初始化
+    // 首次访问时执行闭包，之后缓存结果。
     lazy var expensiveData: [Int] = {
         print("Computing expensive data...")
-        return Array(0..<1000000)
+        return Array(0..<1_000_000)
     }()
-
-    init() {
-        print("DataProcessor initialized")
-        // 此时expensiveData还未计算
-    }
 }
 
 let processor = DataProcessor()
-print("After init")
-// 首次访问时才计算
-let data = processor.expensiveData  // 此时才打印"Computing..."
+// 此时 expensiveData 尚未初始化
+let data = processor.expensiveData // 首次访问才执行闭包
 ```
 
-#### 底层实现原理
+#### 概念模型
+
+`lazy` 可概念化为“Optional 后备存储 + 首次访问时检查、初始化、写回”。这是理解模型，不代表编译器会为每个 lazy 自动插入锁：
 
 ```swift
-// 编译器将lazy属性转换为类似下面的结构
 class DataProcessor {
-    // 存储初始化状态
-    private var _expensiveData_storage: [Int]?
-    private var _expensiveData_initialized = false
-    private let _expensiveData_lock = NSLock()
+    private var storage: [Int]?
 
     var expensiveData: [Int] {
-        mutating get {
-            if !_expensiveData_initialized {
-                _expensiveData_lock.lock()
-                defer { _expensiveData_lock.unlock() }
-
-                // 双重检查锁定
-                if !_expensiveData_initialized {
-                    _expensiveData_storage = {
-                        print("Computing expensive data...")
-                        return Array(0..<1000000)
-                    }()
-                    _expensiveData_initialized = true
-                }
-            }
-            return _expensiveData_storage!
-        }
-        set {
-            _expensiveData_storage = newValue
-            _expensiveData_initialized = true
-        }
+        if let storage { return storage }
+        let value = Array(0..<1_000_000)
+        storage = value
+        return value
     }
 }
 ```
 
-### 内存布局
+#### 为什么默认 `lazy` 不是线程安全的？
 
-```swift
-class MyClass {
-    var regular: String = "regular"
-    lazy var deferred: String = "deferred"
-}
+两条线程同时首次访问时可能发生：
 
-// 内存布局
-MyClass实例:
-┌────────────────────────────────┐
-│  isa指针                        │
-│  regular: String (16字节)       │ ← 立即分配
-│  _deferred_storage: String?     │ ← Optional<String>
-│  _deferred_initialized: Bool    │ ← 初始化标志
-│  _deferred_lock: NSLock         │ ← 线程安全锁
-└────────────────────────────────┘
+```text
+线程 A：发现 storage == nil
+线程 B：发现 storage == nil
+线程 A：执行初始化闭包，写入 storage
+线程 B：也执行初始化闭包，读写同一 storage
 ```
 
-### 线程安全性问题
+结果至少可能有重复初始化和资源浪费；若初始化有副作用（注册观察、写文件、创建连接等），还可能重复副作用。更重要的是，对同一个可变后备存储并发读写本身就是 data race，行为不应依赖。
+
+`lazy` 的目的只是**延迟初始化**，并不提供同步。需要线程安全时，必须把“检查 → 初始化 → 写回”置于同一隔离边界：
 
 ```swift
-// ❌ 非线程安全的lazy
-class UnsafeLazy {
-    lazy var sharedResource: [Int] = {
-        print("Expensive init")
-        return Array(0..<1000000)
-    }()
+// Swift Concurrency：actor 隔离
+actor SafeLazyStore {
+    private var storage: [Int]?
+
+    func sharedResource() -> [Int] {
+        if let storage { return storage }
+        let value = Array(0..<1_000_000)
+        storage = value
+        return value
+    }
 }
 
-// 多线程环境下可能多次初始化
-let unsafe = UnsafeLazy()
-DispatchQueue.concurrentPerform(iterations: 10) { _ in
-    print(unsafe.sharedResource.count)
-}
-
-// ✅ 线程安全的lazy（编译器保证）
-// Swift的lazy属性内置了线程安全机制
-// 使用双重检查锁定确保只初始化一次
+// 旧并发模型：NSLock 或串行队列保护整个临界区。
 ```
 
 ### Lazy vs 计算属性
@@ -1407,13 +1564,13 @@ class AnalyticsEngine {
 ### 面试高频题
 
 **Q: Lazy属性的底层实现原理是什么？**
-A: Lazy属性通过存储初始化状态（Optional值+布尔标志）实现。首次访问时检查标志，如未初始化则执行闭包并缓存结果。Swift内置线程安全机制，使用双重检查锁定确保多线程环境下只初始化一次。
+A: 可概念化为后备 Optional 存储加首次访问时的“检查→初始化→写回”；这是延迟初始化和缓存，不代表编译器自动插入锁。
 
 **Q: Lazy和计算属性的区别是什么？**
 A: Lazy只计算一次并缓存结果，适合昂贵的初始化操作；计算属性每次访问都重新计算，适合值可能变化或计算成本低的情况。Lazy有存储开销（需要空间缓存），计算属性无存储开销但有计算开销。
 
 **Q: Lazy属性是线程安全的吗？**
-A: 是的，Swift的lazy属性内置了线程安全机制。编译器生成的代码包含锁和双重检查锁定，确保多线程环境下只初始化一次。但这个线程安全保证只针对初始化过程，后续的读写操作仍需手动同步。
+A: 默认不保证。两条线程同时首次访问可能都观察到未初始化、重复执行闭包并并发读写后备存储。多线程访问时应用 actor、NSLock 或串行队列保护“检查→初始化→写回”整体。
 
 ---
 
@@ -1715,32 +1872,14 @@ func getTypeInfo(_ value: Any) {
 }
 ```
 
-### 函数派发机制
+### 函数派发机制（与第五部分一致）
 
-```swift
-// 派发方式总结
-class DispatchExample {
-    // 1. 静态派发（final）
-    final func staticMethod() {
-        // 编译期确定，可内联
-    }
+- **Direct / 静态调用**：具体实现可在编译期确定时，编译器可能直接调用或内联；
+- **VTable 语义**：可继承 class 的可 override 成员，通过类型元数据中的槽位选择实现；
+- **协议见证表**：以 `any Protocol` 调用协议要求时常见；
+- **Objective-C 消息派发**：`@objc dynamic` 等需要 Runtime 动态能力的场景。
 
-    // 2. 虚函数表派发（默认）
-    func vtableMethod() {
-        // 运行时通过VTable查找
-    }
-
-    // 3. 消息派发（@objc dynamic）
-    @objc dynamic dynamicMethod() {
-        // 运行时通过objc_msgSend查找
-    }
-}
-
-// 派发性能对比（CPU周期）：
-// 静态派发: ~1周期
-// VTable派发: ~3-4周期
-// 消息派发: ~10+周期
-```
+> 不背固定 CPU 周期，不把“final = 必然静态派发”“泛型 = 必然单态化”当作绝对结论；优化取决于调用点与编译器。
 
 ### 协议类型见证表
 
@@ -1803,7 +1942,7 @@ func processAll(_ items: [any Processor]) {
 
 // ✅ 使用泛型约束
 func processAll<P: Processor>(_ items: [P]) {
-    items.forEach { $0.process() }  // 静态派发
+    items.forEach { $0.process() }  // 具体类型可知时，编译器可能特化/内联
 }
 ```
 
@@ -1940,133 +2079,45 @@ A: 有轻微开销（闭包创建+执行），热循环中避免使用。
 
 ---
 
-## 🔥 Swift面试速记卡（纯问答版）
+## 🔥 Swift面试速记卡（修订版）
 
-**Q: Struct和Class的主要区别？**
-A: Struct是值语义、栈分配、线程安全、无继承；Class是引用语义、堆分配、需线程安全、支持继承。
+**Q: Struct 和 Class 的主要区别？**  
+A: Struct 是值语义，赋值和传参形成独立值；Class 是引用语义，多个引用可共享同一对象。Struct 并非天然线程安全：同一个可变值被多线程共享写入仍有 data race。
 
-**Q: 什么是Copy-on-Write？**
-A: 多个变量共享同一份数据，只有修改时才真正拷贝。Array、Dictionary、Set等支持COW机制，优化性能的同时保持值语义。
+**Q: 什么是 Copy-on-Write？**  
+A: Array、Dictionary、Set 等值类型可先共享底层存储；写入前检查是否唯一持有，不唯一才复制，以较低复制成本维持值语义。CoW 不是并发同步机制。
 
-**Q: 什么时候选择Struct，什么时候选择Class？**
-A: 数据简单、无继承需求、需要线程安全 → Struct；需要继承、引用语义、身份标识 → Class。
+**Q: 泛型与协议的底层差异？**  
+A: 泛型是类型抽象，具体类型可知时编译器可能特化和内联；以 `any Protocol` 存储/调用协议要求时通常用存在容器和见证表。不要把“泛型必单态化、协议必慢”当作绝对规则。
 
-**Q: 泛型和协议的本质区别是什么？**
-A: 泛型是类型抽象（编译期单态化、静态派发、性能最优），协议是行为抽象（运行时见证表、动态派发、灵活性高）。
+**Q: Swift 常见方法派发？**  
+A: Direct/静态调用、class 的 VTable 语义、协议见证表、Objective-C 消息派发。具体方式取决于调用点静态类型、是否可 override、是否 `any Protocol`、是否 `@objc dynamic` 与优化级别。
 
-**Q: 为什么泛型性能比协议好？**
-A: 泛型在编译期为每个类型生成专门代码，可内联优化；协议需要运行时见证表查找，有额外开销。
+**Q: `@objc`、`dynamic`、`final` 的区别？**  
+A: `@objc` 暴露给 Objective-C；`dynamic` 让 Swift 调用也走 Objective-C Runtime 消息派发，常用于 KVO/Swizzling；`final` 禁止 override，使编译器有机会去虚拟化和内联。
 
-**Q: 什么时候用泛型，什么时候用协议？**
-A: 性能关键代码、容器类型 → 泛型；需要多态行为、定义接口 → 协议。
+**Q: `async/await` 是所有异步方式吗？**  
+A: 不是。iOS 仍有 completion/delegate、GCD、Operation、Combine/AsyncSequence。`async/await` 用于结构化并发和顺序异步代码，可与旧模型桥接。
 
-**Q: 什么是类型擦除？为什么需要它？**
-A: 解决带关联类型的协议不能作为具体类型使用的问题。通过包装器结构体隐藏具体类型信息，只暴露协议接口。
+**Q: `await` 和 `DispatchSemaphore.wait()` 的区别？**  
+A: `await` 挂起当前 Task，让线程可执行其他工作；`wait()` 可能阻塞当前线程。不要在主线程或 Swift cooperative executor 中长时间 wait 网络结果。
 
-**Q: ARC只管理什么类型的内存？**
-A: 只管理引用类型的内存，值类型由栈自动管理。
+**Q: actor 与 GCD barrier 怎么选？**  
+A: 新 Swift 模块的共享可变状态优先 actor；既有自建并发队列的读多写少缓存可使用 barrier（不能用 global queue），也可改 actor/NSCache。复杂依赖和最大并发数优先 OperationQueue。
 
-**Q: weak和unowned的区别？**
-A: weak自动置nil，通过SideTable间接访问；unowned不置nil（类似unsafe_unretained），性能更好但需确保生命周期。
+**Q: Lazy 属性线程安全吗？**  
+A: 默认不保证。两线程同时首次读取都可能见到未初始化状态、重复执行初始化闭包并并发读写后备存储。若多线程访问，使用 actor、NSLock 或串行队列保护“检查→初始化→写回”整体。
 
-**Q: 闭包什么时候会发生循环引用？**
-A: 闭包捕获self（类实例），而self又持有闭包时。用捕获列表`[weak self]`打破循环。
+**Q: Lazy 和计算属性的区别？**  
+A: Lazy 首次访问计算并缓存；计算属性每次访问重新计算。Lazy 的目的只是延迟初始化，不是线程同步。
 
-**Q: Swift有哪几种方法派发机制？**
-A: 静态派发（Struct、final，最快）、VTable派发（Class默认）、协议见证表派发（协议类型调用）、消息派发（@objc dynamic，最慢）。
+**Q: ARC、weak、unowned？**  
+A: ARC 管理 class 实例生命周期。weak 自动置 nil，适合对象可能先释放的关系；unowned 不置 nil，只有生命周期确定时才使用，否则会访问已释放对象。
 
-**Q: 派发方式取决于什么？**
-A: 取决于调用类型，不是实现类型。Struct用具体类型调用是静态派发，Class用类类型调用是VTable派发，用协议类型调用都是协议见证表派发。
+**Q: 闭包 / Task 如何避免生命周期问题？**  
+A: `[weak self]` 只避免强环，不会自动停止工作；页面离开、deinit、Cell reuse 等退出点仍要 cancel Task/请求、invalidate Timer、remove observer，并在回调中检查取消和身份。
 
-**Q: 什么时候需要@objc dynamic？**
-A: 需要OC runtime特性时：KVO/KVC、方法交换、Core Animation代理。
+**Q: Actor 如何保证线程安全？**  
+A: actor 隔离其可变状态，外部跨 actor 访问需 `await`；它减少手工锁需求，但非 Sendable 引用、`nonisolated` 和跨 actor 设计仍需正确处理。
 
-**Q: defer的执行顺序是什么？**
-A: LIFO（后进先出），后定义的defer先执行。
-
-**Q: defer的底层实现原理？**
-A: 编译期转为闭包对象，运行时用defer栈管理。函数退出时按LIFO顺序执行所有defer。
-
-**Q: defer最大的优势是什么？**
-A: 执行保证。无论函数如何退出（正常返回、抛出异常、提前退出），defer都会执行。
-
-**Q: Optional的底层实现是什么？**
-A: 泛型枚举，通过关联值存储数据。小对象直接在枚举内存中存储，有内存优化。
-
-**Q: Optional如何优化内存？**
-A: 小对象（如Int?）直接在枚举内存中存储值，大对象存储指针。
-
-**Q: 闭包的底层实现是什么？**
-A: 编译为类实例，捕获的变量成为成员变量，有捕获列表避免循环引用。
-
-**Q: 不捕获变量的闭包性能如何？**
-A: 类似函数指针，性能最优。捕获变量后需要分配堆内存，有性能开销。
-
-**Q: String的小字符串优化是什么？**
-A: ≤15字符内联存储在栈上，避免堆分配。>15字符存储指针指向堆内存。
-
-**Q: Substring和String的关系？**
-A: Substring共享原String内存，修改时触发Copy-on-Write。
-
-**Q: strong和weak引用的性能差异？**
-A: strong直接访问对象，weak通过SideTable间接访问。weak不影响引用计数但性能开销更大。
-
-**Q: Codable的自动合成机制是什么？**
-A: 编译器自动生成编码/解码代码，零运行时开销。通过CodingKeys控制字段映射。
-
-**Q: 如何优化Codable性能？**
-A: 使用内置策略、避免过深嵌套、使用基础类型。
-
-**Q: Property Wrapper的底层实现原理？**
-A: 编译期转换为包装器存储属性（_前缀）+ 计算属性访问wrappedValue。投射值（$）访问projectedValue。
-
-**Q: @State和@Published的区别？**
-A: @State用于值类型局部状态，$投射为Binding；@Published用于引用类型，$投射为Publisher。
-
-**Q: Lazy属性的底层实现？**
-A: Optional值+布尔标志，双重检查锁定确保只初始化一次。
-
-**Q: Lazy是线程安全的吗？**
-A: 是的，内置双重检查锁定，确保多线程环境下只初始化一次。
-
-**Q: Lazy和计算属性的区别？**
-A: Lazy只计算一次并缓存结果；计算属性每次访问都重新计算。
-
-**Q: KeyPath的底层实现？**
-A: 编译期创建，存储属性偏移量和类型元数据，通过偏移量直接访问属性。
-
-**Q: KeyPath相比KVO/KVC的优势？**
-A: 类型安全、性能优秀、编译期检查、支持值类型。
-
-**Q: Swift Runtime相比ObjC Runtime的优势？**
-A: 默认使用VTable派发（性能更好）、类型元数据驱动、泛型特化。
-
-**Q: 什么时候Swift会用到ObjC Runtime？**
-A: @objc dynamic修饰的内容，需要KVO/KVC、方法交换等特性时。
-
-**Q: Swift并发相比GCD的优势？**
-A: 结构化并发、编译期数据竞争检查、Actor数据隔离、取消自动传播、避免回调地狱。
-
-**Q: Actor如何保证线程安全？**
-A: Actor通过数据隔离确保内部状态只能通过串行方法访问，编译期保证同一时间只有一个任务能访问可变状态。
-
-**Q: 什么是结构化并发？**
-A: async/await、TaskGroup、async let等，确保任务的生命周期明确，避免非结构化任务管理。
-
-**Q: Swift为什么比OC快？**
-A: 1. Struct默认静态派发，可内联优化 2. Class用VTable派发，比OC消息派发快 3. 值类型栈分配，无引用计数开销 4. 泛型编译期单态化，为每个类型生成专门代码
-
-**Q: 泛型单态化是什么意思？**
-A: 编译器在编译期为每个具体类型生成专门的代码，比如process<Int>生成process_Int函数。这样可以进行内联优化，函数调用是静态派发，性能最优。
-
-**Q: 协议见证表派发什么时候使用？**
-A: 只有用协议类型调用时才使用协议见证表派发。比如let shape: Drawable = circle，这里shape是协议类型，所以用协议见证表派发。如果用具体类型circle.draw()就是静态派发。
-
-**Q: VTable的查找过程？**
-A: 1. 获取对象的isa指针 2. 通过isa找到类的元数据 3. 在元数据中找到VTable 4. 根据函数在VTable中的索引获取函数指针 5. 调用函数
-
-**Q: SideTable的作用是什么？**
-A: SideTable用于存储weak引用信息，包含弱引用哈希表、引用计数、弱引用计数等。weak引用通过SideTable间接访问对象，不影响对象的引用计数。
-
-**Q: 什么时候会出现循环引用？**
-A: 1. 闭包捕获self，self持有闭包 2. 两个类实例互相持有strong引用 3. 父子实例使用strong引用（应该用unowned或weak）
+---

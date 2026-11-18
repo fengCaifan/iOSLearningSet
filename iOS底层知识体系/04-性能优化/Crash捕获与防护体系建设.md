@@ -50,6 +50,88 @@ iOS崩溃类型：
 
 ---
 
+
+## 1.3 Crash Report 到根因：标准排查流程（核心）
+
+> **先读报告，再建假设，再线下验证。** `EXC_BAD_ACCESS`、`SIGABRT`、`NSRangeException` 是异常呈现，不是根因名称。不要看到一个 signal 就直接说“野指针”“OOM”。
+
+### 第 0 步：确认报告完整性与优先级
+
+```text
+确认 dSYM / UUID 符号化是否正确
+→ 看影响用户数、发生次数、首发版本、趋势
+→ 按核心路径、机型、系统、页面、业务场景分桶
+→ 优先处理影响大且证据完整、可复现的问题
+```
+
+### 第 1 步：按异常呈现进入不同的首查路径
+
+| Crash Report 呈现 | 首先看什么 | 常见假设 | 不能直接下的结论 |
+|---|---|---|---|
+| `NSRangeException` | reason、最后业务帧、下标/集合大小 | 数组/字符串/集合越界 | “系统 Foundation 有 Bug” |
+| `NSInvalidArgumentException` | reason、receiver/参数真实类型 | nil/类型不对、错误参数、API 使用错误 | “一定是野指针” |
+| `NSInternalInconsistencyException` | reason、UIKit/AppKit 断言、调用时序 | 生命周期/API 使用前提不满足、布局/状态不一致 | “只要吞异常即可” |
+| `unrecognized selector` | receiver 实际类、selector、对象生命周期 | 类型边界错误、对象已被替换/释放、接口契约错误 | “全局消息转发能修好” |
+| `EXC_BAD_ACCESS` + `SIGSEGV` / `SIGBUS` | subtype、fault address、崩溃指令、最后业务帧、线程时序 | 非法内存访问、越界、桥接、C/C++、竞态 | “一定是野指针” |
+| `SIGABRT` / `EXC_CRASH` | exception reason、abort 前日志、最后业务帧 | `abort()`、未处理 Exception、Swift fatal/precondition、断言 | “一定是内存问题” |
+| `EXC_BREAKPOINT` / `SIGTRAP` | reason、Swift Runtime/断言栈、业务断言 | `fatalError`、`preconditionFailure`、Swift 运行时 trap、开发者断言 | “用户点了断点” |
+| `EXC_BAD_INSTRUCTION` / `SIGILL` | 崩溃指令、Swift runtime 栈、业务 reason | 非法指令、运行时 trap、错误函数指针/ABI | “一定是第三方 SDK” |
+| `EXC_ARITHMETIC` / `SIGFPE` | 指令、输入、数学计算路径 | 除零、溢出/算术异常（依语言/编译设置） | “一定是浮点问题” |
+| `malloc` / `NSAllocateMemory` / `CGContext` 分配失败 | footprint、资源尺寸、缓存、机型、场景 | 内存压力、峰值、堆损坏、资源过大 | “一定是 OOM” |
+| 无普通 Crash Report、下次异常启动 | 运行标记、前后台、Crash/Watchdog/升级排除 | Jetsam、Watchdog、疑似 FOOM 或其他退出 | “一定是 FOOM” |
+
+> 用户常写成“`EXC_BAD_SEGV`”，准确写法通常是 **`EXC_BAD_ACCESS`**；它可能以 BSD signal **`SIGSEGV`** 或 **`SIGBUS`** 呈现。
+
+### 第 2 步：所有类型通用的证据链
+
+```text
+异常类型 / reason / signal
+→ 崩溃线程：从系统栈向下找最后一个业务帧
+→ 版本、机型、系统、页面、用户路径、发生时机
+→ 其他线程、对象创建/取消/释放、请求/任务回调时序
+→ 建立 2~3 个可验证假设
+→ 最小复现 + 对应工具验证
+→ 根因修复 + 测试 + 灰度 + 分桶回归
+```
+
+`fault address` 只是证据之一，不是“必须先确认无效地址”的前置条件。对 `EXC_BAD_ACCESS`，系统已说明访问触发了内存异常；要并行看以下证据：
+
+| `EXC_BAD_ACCESS` 证据 | 如何使用 | 不能证明什么 |
+|---|---|---|
+| `Exception Subtype: KERN_INVALID_ADDRESS` | 常见于无效虚拟地址访问 | 不能区分野指针、空指针、越界、堆损坏或 race |
+| `Exception Subtype: KERN_PROTECTION_FAILURE` | 地址/页可能存在，但读写执行权限不符 | 不代表对象一定已释放 |
+| Fault Address 是 `0x0` / `0x8` / `0x10` 等 | 常提示 null 指针加成员偏移访问 | 地址形态不是根因证据 |
+| 随机高地址 / 地址重复出现 | 可作为 use-after-free、越界、堆损坏的线索 | 地址会复用，不能仅凭地址定性 |
+| 崩溃线程最后业务帧 | 找到是谁把调用带入 `objc_msgSend`、`malloc`、CoreGraphics 或 SDK | 栈顶在系统库不代表系统库有 Bug |
+| 其他线程与页面退出/回调时序 | 建立生命周期错位或 data race 假设 | 多线程存在不等于已经证明 race |
+
+### 第 3 步：针对不同类别选择验证工具
+
+| 假设 | 最小复现方法 | 验证工具 | 能确认什么 | 常见修复 |
+|---|---|---|---|---|
+| ObjC 对象释放后仍收消息 | 进入页面→发起异步/Timer→立即退出→延迟回调 | Zombie | 已释放对象的类和访问调用点 | 明确 owner、取消任务、`invalidate`/`removeObserver`、弱引用与会话 ID 校验 |
+| C/C++/CF 越界、use-after-free、double free | 压力路径、边界输入、图片/音视频处理 | ASan | 被插桩代码的典型越界/释放后访问 | 边界检查、所有权、正确 bridge、释放后置空 |
+| 无同步并发读写 | 延迟/并发压力回放、重复操作 | TSan | data race | actor/锁/串行队列、线程封闭、不可变快照 |
+| 业务 Exception | 用 reason 与业务参数还原输入 | 断点、单测、断言、日志 | 业务状态/参数违反 API 前提 | 修调用方、边界检查、状态机、测试 |
+| 内存峰值 / 分配失败 | 低端机、超大资源、列表/页面压力 | Allocations、VM Tracker、Memory Graph | 分配曲线、峰值、大户、泄漏线索 | 降采样、缓存限额、分页、退场清理 |
+
+工具边界：Zombie 不能线上常开；ASan/TSan 开销大，通常用于 Debug/CI；Memory Graph/Leaks 找的是持有关系或泄漏，不能验证野指针。
+
+### 第 4 步：修复、止血与回归
+
+```text
+根因修复优先：所有权 / 生命周期 / 线程同步 / 业务边界 / 资源峰值
+→ 单测、压力回放、静态分析 / Sanitizer
+→ 灰度发布，按版本/机型/场景观察同类 Issue
+→ 告警、Code Review 规则、防回归测试
+```
+
+Runtime 防护仅适用于**高频、边界明确、可安全降级且已有证据**的问题；必须白名单、开关、日志、灰度、回滚。禁止将全局吞 `EXC_BAD_ACCESS`、未知 selector 或业务 Exception 当成常规治理方案，否则可能把 Crash 转为数据错误。
+
+### 面试回答模板：从异常到治理
+
+> 我先按 Crash Report 的呈现分类，而不按异常名直接下根因。例如业务 Exception 优先用 reason 和最后业务栈帧复现；对 `EXC_BAD_ACCESS` / signal，我会并行看 subtype、fault address、最后业务帧、页面与线程时序，形成生命周期、越界/bridge、C/C++ 或并发竞争等假设，再用 Zombie、ASan、TSan 或压力复现验证。修复时优先改所有权、取消/回调契约、同步边界或资源峰值；上线通过灰度和分桶观察同类 Issue 收敛。Runtime 防护只做少量可安全降级的白名单止血，不替代根因修复。
+
 ## 2. 异常捕获机制
 
 ### 2.1 OC异常捕获

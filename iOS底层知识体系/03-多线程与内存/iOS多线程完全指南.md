@@ -156,6 +156,8 @@ t.name = @"com.example.worker";
 | **全局队列** | 系统并发队列，**QoS** 区分 `userInteractive` … `background` |
 | **主队列** | 与主线程绑定，用于 UI；`dispatch_sync(main)` 在已在主线程时易死锁 |
 
+> **易错纠正**：队列不等于线程。串行/并发描述同一队列任务之间能否同时执行；sync/async 描述提交任务的调用方是否等待 block 结束。除主队列固定由主线程执行外，任务在哪条 worker 线程运行、是否复用或创建线程均由系统调度；不要说“串行队列在当前线程执行”“并发/async 必开新线程”。
+
 创建队列：
 
 ```objective-c
@@ -230,6 +232,8 @@ for (NSInteger i = 0; i < 10; i++) {
 }
 ```
 
+`wait` 不是只检查计数：它先尝试将计数减 `1`，原计数大于 `0` 则继续，原计数为 `0` 则阻塞等待；`signal` 将计数加 `1`，并可能唤醒一个等待者。实际代码应保证每个成功的 `wait` 都在成功、失败、取消、提前返回等路径中恰好对应一次 `signal`（Swift 中常用 `defer`）。不要在主线程 `wait` 网络或耗时任务结果：会阻塞 RunLoop、卡 UI；若回调也依赖主线程，可能永久等待。
+
 ### 5.3 QoS（与调度）
 
 QoS 影响 **开始调度**的相对顺序与系统分配的计算资源；**不保证**「先开始必先结束」。与全局队列优先级相关的面试表述要严谨。
@@ -248,6 +252,8 @@ dispatch_barrier_async(q, ^{
 ```
 
 > Swift 侧为 `DispatchQueue` 的 `.flags.barrier`；OC 为 `dispatch_barrier_async`。
+
+**前提与边界**：Barrier 必须用于**自己创建的并发队列**。不能在 `DispatchQueue.global()` / 全局 root queue 上依赖它实现共享数据读写互斥，因为全局队列是系统共享资源，不是应用可控制的读写边界，其他提交到该队列的任务不受此 barrier 约束。若读缓存必须立即返回结果，可在不位于该队列内部时做极短的 `queue.sync` 读取；不要将磁盘 I/O 或网络置于临界区。
 
 ### 5.5 Group：`enter` / `leave`
 
@@ -271,6 +277,8 @@ dispatch_group_notify(g, dispatch_get_main_queue(), ^{
 });
 ```
 
+每个 `enter` 必须**恰好一次**对应 `leave`：成功、失败、取消和超时的最终收口均不能遗漏。若超时处理与正常 completion 可能竞态到达，应使用线程安全的“单次收口”标记防止重复 `leave`。不要以 `group.async { dataTask.resume() }` 代替：外层 block 会在 `resume()` 后立即返回，Group 不会等待 URLSession completion。
+
 （与 `原始小集/multithreads.md` 一致。）
 
 ### 5.6 死锁典型场景（面试常画图）
@@ -279,6 +287,8 @@ dispatch_group_notify(g, dispatch_get_main_queue(), ^{
 2. **同一串行队列**：`sync` 嵌套 `sync`。  
 3. **主队列**：已在主线程时 `dispatch_sync(main, …)`。  
 4. **NSOperation 依赖成环**：`A` 依赖 `B` 且 `B` 依赖 `A`，就绪条件永不满足。
+
+避免方式不是机械地把所有 `sync` 改为 `async`，因为这会改变后续逻辑的完成时序。UI 耗时工作应组织为“主线程发起 → 后台 async 计算 → main.async 消费结果”，所有依赖结果的逻辑放在 completion 内。已经在某个串行队列中时，直接调用普通函数即可，不要再 `sync` 同一个队列；外部代码若确实需要同步读取极短状态，才在确认不位于该队列内部时使用 `sync`。
 
 ### 5.7 libdispatch 实现要点（源码向）
 
@@ -334,7 +344,6 @@ dispatch_group_notify(g, dispatch_get_main_queue(), ^{
 | 实现层 | 队列=FIFO item、target 链、串行 drain / 并发 width、主队列特殊、Block 拷贝 |
 | 系统层 | pthread 执行体、QoS、Mach 与信号量（粗线条即可） |
 
----
 
 ## 6. NSOperation 与 NSOperationQueue
 
@@ -403,6 +412,10 @@ NSOperation *o3 = [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"3"); }];
 - **依赖**：`addDependency:` 必须**无环**，否则死锁。  
 - **单独 `start`**：`NSBlockOperation` / `NSInvocationOperation` 的 `start` 在**当前线程同步**跑；**进队列**后才异步调度。
 
+> **易错纠正**：`maxConcurrentOperationCount` 限制的是同时处于执行状态的 **Operation 数**，不等于固定线程数；底层执行线程仍由系统决定。`cancel()` 只是协作式取消信号，已开始的任务必须在开始、耗时循环、异步回调、写入共享状态和更新 UI 前检查 `isCancelled`。
+
+> **依赖不等于成功**：`decode.addDependency(download)` 只保证 DownloadOperation 已结束；下载失败或取消后 DecodeOperation 仍可能开始，因此下游必须校验上游产物（如 `Data` / `UIImage`）是否有效。
+
 ### 6.4 异步 Operation 与 RunLoop（知识小集）
 
 自定义 Operation 在 `main` 里发起 **异步回调**时，若 `main` 立刻返回，框架会认为 operation **已结束**。常见写法：**在 `main` 里等到异步完成**（或正确重写 `asynchronous` / `isExecuting` 等，见下方）。
@@ -436,6 +449,8 @@ NSOperation *o3 = [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"3"); }];
 
 工程上更推荐：改用 **GCD + group** 或 **Operation 异步子类**正确维护 **KVO 状态**（`executing`/`finished`），避免忙等 RunLoop。
 
+对 URLSession 这类回调式 API，普通 `main()` 在 `dataTask.resume()` 后马上返回，不能代表网络请求完成，会让队列过早释放并发名额。应实现异步 Operation：启动时将 `isExecuting` 置为 `true`；在成功、失败、取消和所有提前返回路径的**最终收口处恰好一次** `finish()`，同步将 `isExecuting` 置为 `false`、`isFinished` 置为 `true`。完整 Swift 代码见 [TableViewImageLoadingDemo](Demos/TableViewImageLoadingDemo/README.md)。
+
 ### 6.5 NSOperationQueue 与「主队列」
 
 ```objective-c
@@ -456,6 +471,303 @@ URLSession 等 API 的 `delegateQueue` 常指定 `mainQueue` 或自定义队列�
 | 暂停整批任务 | 需自建 | **`suspended`** |
 | 适用 | 轻量异步、系统级密集调度 | 复杂流程、可取消流水线、单测友好 |
 
+### 6.7 实战：TableView 图片加载如何在 Operation 与 GCD 之间选型
+
+图片加载不是“开一个后台线程下载”这么简单；一个请求通常至少包括：
+
+```text
+读内存缓存 → 网络下载 → 图片解码 / 降采样 → 写内存或磁盘缓存 → 主线程显示
+```
+
+先按职责划分，而不是机械地把所有步骤都包装为 `Operation`：
+
+| 问题 / 阶段 | 更合适的抽象 | 原因 |
+|---|---|---|
+| 一张图片完整加载任务的排队、优先级、取消、总并发数 | `OperationQueue` + `Operation` | 这是有生命周期的工作单元，需要统一调度与取消 |
+| Operation 内部的一段后台 CPU 工作（如解码） | GCD 并发队列或独立 `OperationQueue` | 简单场景 GCD 轻量；需要单独限流时再升为 Operation 阶段 |
+| 内存缓存 Dictionary 的读多写少线程安全 | 自建并发 `DispatchQueue` + barrier；也可 `actor` / `NSCache` / 锁 | 本质是保护共享可变状态，不是任务依赖图 |
+| 下载、解码、磁盘写分别有并发上限、优先级或重试要求 | 多个 `OperationQueue` + 依赖链 | 各阶段资源约束不同，适合独立编排 |
+
+> **队列不按每张图片创建。** 一个列表 / 一个图片服务应共享 Loader 和它内部的队列；每张图片只创建一个或多个 **Operation** 加入共享队列。若每张图片各创建 `maxConcurrentOperationCount = 4` 的队列，60 张图仍可能同时运行 60 × 4 个任务，限流完全失效，缓存也无法共享。
+
+#### 6.7.1 方案 A：每张图片一个异步 Operation（普通列表的优先选择）
+
+适用条件：只需要限制“同时加载几张图”，下载、解码不要求分别限流；取消、优先级和任务生命周期希望统一管理。
+
+```text
+整个列表共享一个 ImageLoader
+  ├── operationQueue（例如最多 4 个完整图片加载任务）
+  ├── decodeQueue（GCD 并发队列）
+  └── cacheQueue（GCD 并发队列：并发读 + barrier 写）
+
+图片 A：ImageLoadOperation
+  URLSession 下载 → decodeQueue 解码 → cacheQueue 写缓存 → main queue 回调 UI
+```
+
+此方案中 `ImageLoadOperation` **只有在解码、缓存等必要阶段结束后才 `finish`**。所以虽然解码放到了 GCD 队列，`operationQueue` 的上限仍会限制同时活跃的完整链路数。
+
+对应可运行 Swift + UIKit Demo：[TableViewImageLoadingDemo/Demo 说明](Demos/TableViewImageLoadingDemo/README.md)。重点阅读 `ImageLoader.swift`、`ImageCell.swift`、`ImageListViewController.swift`。
+
+**最小核心代码（Swift + UIKit，便于复习）**：Loader 只创建一次，因此一个列表的所有图片共享并发上限、解码队列与缓存。
+
+```swift
+final class ImageLoader {
+    private let operationQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.example.image-loader.operations"
+        queue.maxConcurrentOperationCount = 4 // 限制完整图片加载链路，而非队列容量
+        return queue
+    }()
+
+    private let decodeQueue = DispatchQueue(
+        label: "com.example.image-loader.decode",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
+    private let cacheQueue = DispatchQueue(
+        label: "com.example.image-loader.cache",
+        attributes: .concurrent
+    )
+    private var memoryCache: [String: UIImage] = [:]
+
+    @discardableResult
+    func loadImage(url: URL, completion: @escaping (UIImage?) -> Void) -> ImageRequest {
+        let key = url.absoluteString
+
+        // 仅做极短的内存读；不要在这里做磁盘 I/O 或网络。
+        if let cached = cacheQueue.sync(execute: { memoryCache[key] }) {
+            DispatchQueue.main.async { completion(cached) }
+            return ImageRequest()
+        }
+
+        let operation = ImageLoadOperation(url: url, decodeQueue: decodeQueue) { [weak self] image in
+            guard let self, let image else { return }
+            // Dictionary 写入必须独占；Operation 结束前保证缓存已写完。
+            self.cacheQueue.sync(flags: .barrier) { self.memoryCache[key] = image }
+            DispatchQueue.main.async { completion(image) }
+        }
+        operationQueue.addOperation(operation)
+        return ImageRequest(operation: operation)
+    }
+}
+```
+
+一张图对应一个异步 Operation。以下省略了 `NSLock` 保护的 KVO 状态细节（完整实现见 Demo），重点是：请求真正完成前不能 `finish()`；下载回调和解码阶段都需要检查协作式取消。
+
+```swift
+final class ImageLoadOperation: AsyncOperation {
+    private let url: URL
+    private let decodeQueue: DispatchQueue
+    private var task: URLSessionDataTask?
+
+    override func execute() {
+        task = URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+            guard let self else { return }
+            guard !self.isCancelled, error == nil, let data, !data.isEmpty else {
+                self.finish(); return
+            }
+
+            self.decodeQueue.async {
+                guard !self.isCancelled, let image = self.decode(data) else {
+                    self.finish(); return
+                }
+                self.completion(image) // Loader 再写缓存并回主线程
+                self.finish()
+            }
+        }
+        task?.resume()
+    }
+
+    override func cancel() {
+        super.cancel()
+        task?.cancel() // 已经在路上的 completion 仍可能到达
+    }
+}
+```
+
+Cell 必须保存请求句柄（强引用，便于取消），但回调**弱引用 Cell**，并在最终赋图前检查 Cell 当前身份：
+
+```swift
+final class ImageCell: UITableViewCell {
+    var representedURLString: String?
+    var imageRequest: ImageRequest? // strong：Cell 需要用它 cancel
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        imageRequest?.cancel()
+        imageRequest = nil
+        representedURLString = nil
+    }
+}
+
+// cellForRowAt:
+cell.representedURLString = url.absoluteString
+cell.imageRequest = imageLoader.loadImage(url: url) { [weak cell] image in
+    guard let cell, cell.representedURLString == url.absoluteString else { return }
+    cell.imageView?.image = image
+}
+```
+
+#### 6.7.2 异步 Operation：URLSession 为什么不能只覆写 `main()`？
+
+以下写法是错误示意：
+
+```swift
+final class WrongDownloadOperation: Operation {
+    override func main() {
+        URLSession.shared.dataTask(with: url) { _, _, _ in
+            // 网络回调还没发生
+        }.resume()
+        // main 返回，OperationQueue 已误认为 Operation 完成
+    }
+}
+```
+
+`URLSessionDataTask` 是回调式异步任务，`main()` 返回不代表网络完成。若不处理，下载队列会提前释放并发名额，限流失真。
+
+正确方式是实现异步 Operation：
+
+```text
+isReady → isExecuting → isFinished
+                    ↘ isCancelled
+```
+
+1. 声明 `isAsynchronous == true`；
+2. 开始请求时 KVO 通知 `isExecuting = true`；
+3. 无论成功、失败还是取消，在网络 completion 的最终收尾处**恰好一次**通知 `isExecuting = false`、`isFinished = true`；
+4. `cancel()` 除设置 Operation 的取消标记外，还应 `URLSessionTask.cancel()`；任务各阶段继续协作检查 `isCancelled`。
+
+不要通过 RunLoop 循环或忙等来“阻塞到异步回调结束”；正确维护 Operation 的 KVO 状态更可靠、更节能。
+
+#### 6.7.3 方案 B：下载、解码、缓存为独立 Operation（独立资源约束）
+
+当需求变为：**最多 6 个网络下载、最多 2 个图片解码、磁盘缓存写入必须串行**，方案 A 不再适合。此时应让每个阶段拥有自己的共享队列和上限：
+
+```text
+同一张图片：
+DownloadOperation ──dependency──> DecodeOperation ──dependency──> CacheWriteOperation
+     ↓                                   ↓                                  ↓
+downloadQueue(6)                    decodeQueue(2)                 cacheWriteQueue(1)
+```
+
+```swift
+decode.addDependency(download) // Decode 等 Download 结束
+cache.addDependency(decode)    // Cache 等 Decode 结束
+
+downloadQueue.addOperation(download)
+decodeQueue.addOperation(decode)
+cacheWriteQueue.addOperation(cache)
+```
+
+不同图片可以形成流水线：A 在解码时，B～G 仍可下载；但任一图片内部仍严格遵守下载 → 解码 → 缓存的依赖顺序。
+
+**依赖只表示“上游已结束”，不表示“上游成功”。** 因此下载失败或取消后，`DecodeOperation` 仍可能变为就绪状态；它的 `main()` 必须检查上游产出的 `Data` 是否存在、自己是否已取消。缓存阶段同样检查是否有有效 `UIImage`。
+
+对应可运行 Swift + UIKit Demo：[SplitImagePipelineDemo/Demo 说明](Demos/SplitImagePipelineDemo/README.md)。重点阅读 `AsyncOperation.swift` 和 `SplitImagePipeline.swift`。
+
+**分阶段 Pipeline 核心代码**：三个队列是 Pipeline 的共享属性；每个 URL 创建三个 Operation，分别加入对应队列，而不是“一张图创建三个 Queue”。
+
+```swift
+final class SplitImagePipeline {
+    private let downloadQueue = makeQueue(name: "download", maxConcurrent: 6)
+    private let decodeQueue = makeQueue(name: "decode", maxConcurrent: 2)
+    private let cacheWriteQueue = makeQueue(name: "cache-write", maxConcurrent: 1)
+
+    func loadImage(url: URL, completion: @escaping (UIImage?) -> Void) -> SplitImageRequest {
+        let context = ImagePipelineContext() // 在三个阶段间安全传递 Data / UIImage
+        let download = DownloadOperation(url: url, context: context)
+        let decode = DecodeOperation(context: context)
+        let cache = CacheWriteOperation(context: context, completion: completion)
+
+        decode.addDependency(download) // 上游结束后 Decode 才能开始
+        cache.addDependency(decode)    // Decode 结束后 Cache 才能开始
+
+        downloadQueue.addOperation(download) // 网络最多 6 个
+        decodeQueue.addOperation(decode)     // 解码最多 2 个
+        cacheWriteQueue.addOperation(cache)  // 磁盘写最多 1 个
+        return SplitImageRequest(operations: [download, decode, cache])
+    }
+}
+```
+
+下游 Operation 的关键不是只依赖，而是还要验证上游产物：
+
+```swift
+final class DecodeOperation: Operation {
+    let context: ImagePipelineContext
+
+    override func main() {
+        // dependency 不能代表下载成功：下载失败 / 取消也会“结束”。
+        guard !isCancelled,
+              let data = context.data,
+              let source = UIImage(data: data) else { return }
+
+        let image = decodeAndDownsample(source) // 后台 OperationQueue 执行
+        guard !isCancelled else { return }
+        context.image = image
+    }
+}
+
+final class CacheWriteOperation: Operation {
+    override func main() {
+        guard !isCancelled, let image = context.image else { return }
+        writeDiskCache(image) // 由 maxConcurrentOperationCount = 1 串行控制
+        guard !isCancelled else { return }
+        DispatchQueue.main.async { completion(image) }
+    }
+}
+```
+
+#### 6.7.4 缓存写阶段与缓存线程安全是两个维度
+
+下面两个队列看起来都与缓存有关，却解决不同问题：
+
+```text
+cacheWriteQueue（OperationQueue，max = 1）
+  → 控制“缓存写入”业务阶段，例如图片编码、磁盘文件 I/O、索引更新；防止写放大
+
+memoryCacheQueue（GCD concurrent queue + barrier）
+  → 保护共享的内存 Dictionary；读取可并发，写入必须独占
+```
+
+若仅仅是写一个内存 Dictionary，通常不值得额外建立 `CacheWriteOperation`；`NSCache`、Swift `actor`、锁、串行队列或 concurrent queue + barrier 已足够。Demo 中保留缓存写 Operation，仅用于展示阶段级限流。
+
+#### 6.7.5 Cell 复用、取消与错图防护
+
+`cancel()` 是**协作式取消**，并不会抹掉一个已经回到主线程的 completion。因此完整防护链是：
+
+```text
+Cell 配置 URL-A：记录 representedURLString = A，保存 ImageRequest
+  ↓
+Cell 离屏 / prepareForReuse：取消 ImageRequest（进一步取消 Download / Decode / Cache Operation）
+  ↓
+网络回调、解码开始前/后、缓存写前：检查 isCancelled
+  ↓
+回主线程赋图前：再次比较 cell.representedURLString 是否仍为 A
+  ↓
+匹配才显示图片
+```
+
+最后一步不可省略：Cell 可能已从 URL-A 复用为 URL-B，而 A 的回调在取消后仍有机会晚到。回调应弱引用 Cell / Controller，避免异步任务不必要地延长 UI 对象生命周期。
+
+#### 6.7.6 `dispatch_group` 在图片加载中的位置
+
+单个 Cell 加载通常无需 Group。若首屏要求“整批图片下载、解码、缓存完成后只刷新一次”，对**每张图片完整流程**调用一次 `enter`，并在最后一阶段完成（或失败/取消收尾）时**恰好一次** `leave`：
+
+```swift
+group.enter()
+pipeline.loadImage(url: url) { image in
+    defer { group.leave() }
+    // 处理当前结果
+}
+group.notify(queue: .main) {
+    // 本批所有流程均收口
+}
+```
+
+不能只用 `group.async` 包住 `URLSessionDataTask` 的创建；创建 task 后外层 block 就返回了，Group 不会自动等待网络 completion。
+
 ---
 
 ## 7. 技术选型汇总
@@ -466,6 +778,9 @@ URLSession 等 API 的 `delegateQueue` 常指定 `mainQueue` 或自定义队列�
 | 读多写少共享可变状态 | **并发队列 + barrier**（或串行队列一把锁） |
 | 多异步任务汇总回调 | **group enter/leave** 或 **Operation 依赖** |
 | 依赖图、取消、并发度、可测试 | **NSOperationQueue** |
+| 图片整体加载限流、优先级和取消 | **共享 OperationQueue + 每图一个异步 Operation** |
+| 下载 / 解码 / 磁盘写有独立并发资源约束 | **多个共享 OperationQueue + 依赖链** |
+| 内存缓存读多写少 | **concurrent DispatchQueue + barrier**（或 `NSCache` / actor） |
 | C 库、线程属性、join 语义 | **pthread** |
 | 与旧代码 RunLoop / performSelector 集成 | **NSThread + RunLoop** |
 

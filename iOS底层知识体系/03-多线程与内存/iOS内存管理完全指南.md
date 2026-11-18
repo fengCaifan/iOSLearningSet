@@ -419,6 +419,7 @@ NSSet *cycles = [detector findRetainCycles];
 
 > FOOM 是资深岗高频深挖点：普通崩溃 SDK 抓不到，考察你对系统机制和线上归因的理解。
 
+
 ### 什么是 FOOM / BOOM
 
 - **FOOM**（Foreground Out Of Memory）：App 在**前台**因内存占用过高，被内核 **Jetsam** 机制强杀，表现为"闪退"，但不是常规崩溃。
